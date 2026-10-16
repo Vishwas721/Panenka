@@ -5,66 +5,102 @@ import {
   calcAssistBreakdown,
   calcRecentForm,
   compareForRanking,
+  type PerformanceRecord,
   type PlayerStats,
   type GoalBreakdown,
   type AssistBreakdown,
   type RecentForm,
-  type PerformanceRecord,
+  type RankablePlayer,
 } from "@/lib/stats";
 import {
+  didAppear,
   type CreatePlayerInput,
   type UpdatePlayerInput,
 } from "@/lib/validation";
-import { Position, PreferredFoot } from "@prisma/client";
+import type {
+  Player,
+  Position,
+  PreferredFoot,
+  MatchVenue,
+  MatchStatus,
+  AppearanceStatus,
+  Prisma,
+} from "@prisma/client";
 
-export interface PlayerWithStats {
-  id: string;
-  fullName: string;
-  displayName: string | null;
-  position: Position;
-  preferredFoot: PreferredFoot;
-  squadNumber: number | null;
-  team: string | null;
-  nationality: string | null;
-  imageUrl: string | null;
-  notes: string | null;
-  isDemo: boolean;
-  archivedAt: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
+export interface PlayerWithStats extends Player {
   stats: PlayerStats;
 }
 
-export interface PlayerDetail extends PlayerWithStats {
-  goalBreakdown: GoalBreakdown;
-  assistBreakdown: AssistBreakdown;
-  recentForm: RecentForm;
-  matches: {
-    matchId: string;
+export interface PaginatedPlayers {
+  data: PlayerWithStats[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface PlayerMatchDetail {
+  performanceId: string;
+  appearanceStatus: AppearanceStatus;
+  minutesPlayed: number | null;
+  goals: number;
+  assists: number;
+  notes: string | null;
+  match: {
+    id: string;
     date: Date;
     opponent: string;
     team: string | null;
-    status: string;
-    appearanceStatus: string;
-    minutesPlayed: number | null;
-    goals: number;
-    assists: number;
-    contributions: number;
-  }[];
+    venue: MatchVenue | null;
+    venueName: string | null;
+    scoreHome: number | null;
+    scoreAway: number | null;
+    status: MatchStatus;
+    competition: {
+      id: string;
+      name: string;
+      season: string | null;
+    } | null;
+  };
 }
 
+export interface PlayerDetail extends Player {
+  stats: PlayerStats;
+  goalBreakdown: GoalBreakdown;
+  assistBreakdown: AssistBreakdown;
+  recentForm: RecentForm;
+  matches: PlayerMatchDetail[];
+}
+
+export interface GetPlayersParams {
+  search?: string;
+  position?: Position;
+  team?: string;
+  includeArchived?: boolean;
+  page?: number;
+  pageSize?: number;
+  sortBy?: "name" | "appearances" | "goals" | "assists" | "goalContributions";
+  sortOrder?: "asc" | "desc";
+}
+
+/**
+ * Check if a player with the given name already exists in the same team.
+ * Comparison is case- and whitespace-insensitive.
+ */
 export async function checkDuplicatePlayer(
   fullName: string,
   team?: string | null,
   excludeId?: string,
 ): Promise<boolean> {
   const normalizedName = fullName.trim().toLowerCase();
-  const normalizedTeam = team?.trim().toLowerCase() || null;
+  const trimmedTeam = team?.trim();
 
   const candidates = await prisma.player.findMany({
     where: {
       ...(excludeId ? { id: { not: excludeId } } : {}),
-      team: normalizedTeam ? { equals: team?.trim(), mode: "insensitive" } : null,
+      ...(trimmedTeam
+        ? { team: { equals: trimmedTeam, mode: "insensitive" } }
+        : { OR: [{ team: null }, { team: "" }] }),
     },
     select: { id: true, fullName: true },
   });
@@ -74,110 +110,28 @@ export async function checkDuplicatePlayer(
   );
 }
 
-export async function createPlayer(data: CreatePlayerInput) {
-  const isDuplicate = await checkDuplicatePlayer(data.fullName, data.team);
-  if (isDuplicate) {
-    throw new Error(
-      `A player named "${data.fullName}" already exists in team "${data.team || "None"}".`,
-    );
-  }
-
-  return prisma.player.create({
-    data: {
-      fullName: data.fullName,
-      displayName: data.displayName || null,
-      position: data.position,
-      preferredFoot: data.preferredFoot,
-      squadNumber: data.squadNumber ?? null,
-      team: data.team || null,
-      nationality: data.nationality || null,
-      imageUrl: data.imageUrl || null,
-      notes: data.notes || null,
-    },
-  });
-}
-
-export async function updatePlayer(id: string, data: UpdatePlayerInput) {
-  if (data.fullName) {
-    const isDuplicate = await checkDuplicatePlayer(data.fullName, data.team, id);
-    if (isDuplicate) {
-      throw new Error(
-        `A player named "${data.fullName}" already exists in team "${data.team || "None"}".`,
-      );
-    }
-  }
-
-  return prisma.player.update({
-    where: { id },
-    data: {
-      ...(data.fullName !== undefined ? { fullName: data.fullName } : {}),
-      ...(data.displayName !== undefined ? { displayName: data.displayName || null } : {}),
-      ...(data.position !== undefined ? { position: data.position } : {}),
-      ...(data.preferredFoot !== undefined ? { preferredFoot: data.preferredFoot } : {}),
-      ...(data.squadNumber !== undefined ? { squadNumber: data.squadNumber } : {}),
-      ...(data.team !== undefined ? { team: data.team || null } : {}),
-      ...(data.nationality !== undefined ? { nationality: data.nationality || null } : {}),
-      ...(data.imageUrl !== undefined ? { imageUrl: data.imageUrl || null } : {}),
-      ...(data.notes !== undefined ? { notes: data.notes || null } : {}),
-    },
-  });
-}
-
-export async function archivePlayer(id: string) {
-  return prisma.player.update({
-    where: { id },
-    data: { archivedAt: new Date() },
-  });
-}
-
-export async function restorePlayer(id: string) {
-  return prisma.player.update({
-    where: { id },
-    data: { archivedAt: null },
-  });
-}
-
-export async function deletePlayer(id: string) {
-  const performanceCount = await prisma.playerMatchPerformance.count({
-    where: { playerId: id },
-  });
-
-  if (performanceCount > 0) {
-    throw new Error(
-      "Cannot delete player with recorded performances. Archive them instead.",
-    );
-  }
-
-  return prisma.player.delete({
-    where: { id },
-  });
-}
-
-export async function getPlayers(params: {
-  search?: string;
-  position?: Position;
-  team?: string;
-  includeArchived?: boolean;
-  page?: number;
-  pageSize?: number;
-  sortBy?: "name" | "appearances" | "goals" | "assists" | "goalContributions";
-  sortOrder?: "asc" | "desc";
-}): Promise<{ data: PlayerWithStats[]; total: number; page: number; pageSize: number; totalPages: number }> {
+/**
+ * Returns a paginated list of players along with aggregated totals
+ * derived from completed match performances using pure stats functions.
+ */
+export async function getPlayers(
+  params: GetPlayersParams = {},
+): Promise<PaginatedPlayers> {
   const {
     search,
     position,
     team,
     includeArchived = false,
     page = 1,
-    pageSize = 25,
+    pageSize = 10,
     sortBy = "name",
-    sortOrder = "asc",
+    sortOrder = sortBy === "name" ? "asc" : "desc",
   } = params;
 
-  const whereClause: any = {
+  const where: Prisma.PlayerWhereInput = {
     ...(!includeArchived ? { archivedAt: null } : {}),
     ...(position ? { position } : {}),
-    ...(team ? { team: { contains: team, mode: "insensitive" } } : {}),
+    ...(team ? { team: { equals: team, mode: "insensitive" } } : {}),
     ...(search
       ? {
           OR: [
@@ -188,79 +142,155 @@ export async function getPlayers(params: {
       : {}),
   };
 
+  // Fetch matching players with their performance records
   const players = await prisma.player.findMany({
-    where: whereClause,
+    where,
     include: {
       performances: {
-        include: {
+        select: {
+          goals: true,
+          assists: true,
+          minutesPlayed: true,
+          appearanceStatus: true,
           match: {
-            select: { status: true, date: true, createdAt: true },
+            select: {
+              status: true,
+              date: true,
+            },
           },
         },
       },
     },
   });
 
+  // Derive stats for each player using pure functions
   const playersWithStats: PlayerWithStats[] = players.map((player) => {
-    const perfRecords: PerformanceRecord[] = player.performances.map((perf) => ({
+    const { performances, ...playerFields } = player;
+    const records: PerformanceRecord[] = performances.map((perf) => ({
       goals: perf.goals,
       assists: perf.assists,
       minutesPlayed: perf.minutesPlayed,
-      appeared: perf.appearanceStatus === "STARTED" || perf.appearanceStatus === "SUBSTITUTE_USED",
+      appeared: didAppear(perf.appearanceStatus),
       matchCompleted: perf.match.status === "COMPLETED",
     }));
 
-    const stats = calcPlayerStats(perfRecords);
-    const { performances, ...playerFields } = player;
-
     return {
       ...playerFields,
-      stats,
+      stats: calcPlayerStats(records),
     };
   });
 
-  // Sort
+  // Calculate total minutes for tie-breaking
+  const minutesByPlayerId = new Map<string, number | null>();
+  for (const player of players) {
+    const completedApps = player.performances.filter(
+      (perf) =>
+        perf.match.status === "COMPLETED" && didAppear(perf.appearanceStatus),
+    );
+    const hasAnyMinutes = completedApps.some((p) => p.minutesPlayed !== null);
+    const totalMinutes = hasAnyMinutes
+      ? completedApps.reduce((sum, p) => sum + (p.minutesPlayed ?? 0), 0)
+      : null;
+    minutesByPlayerId.set(player.id, totalMinutes);
+  }
+
+  // Sort based on sortBy & sortOrder
   playersWithStats.sort((a, b) => {
-    let comp = 0;
+    let result = 0;
+
     if (sortBy === "name") {
-      comp = a.fullName.localeCompare(b.fullName);
-    } else if (sortBy === "appearances") {
-      comp = a.stats.appearances - b.stats.appearances;
-    } else if (sortBy === "goals") {
-      comp = a.stats.goals - b.stats.goals;
-    } else if (sortBy === "assists") {
-      comp = a.stats.assists - b.stats.assists;
-    } else if (sortBy === "goalContributions") {
-      comp = a.stats.goalContributions - b.stats.goalContributions;
+      result = a.fullName.localeCompare(b.fullName);
+    } else {
+      let metricA = 0;
+      let metricB = 0;
+
+      if (sortBy === "appearances") {
+        metricA = a.stats.appearances;
+        metricB = b.stats.appearances;
+      } else if (sortBy === "goals") {
+        metricA = a.stats.goals;
+        metricB = b.stats.goals;
+      } else if (sortBy === "assists") {
+        metricA = a.stats.assists;
+        metricB = b.stats.assists;
+      } else if (sortBy === "goalContributions") {
+        metricA = a.stats.goalContributions;
+        metricB = b.stats.goalContributions;
+      }
+
+      const rankableA: RankablePlayer = {
+        id: a.id,
+        fullName: a.fullName,
+        primaryMetric: metricA,
+        appearances: a.stats.appearances,
+        totalMinutes: minutesByPlayerId.get(a.id) ?? null,
+      };
+
+      const rankableB: RankablePlayer = {
+        id: b.id,
+        fullName: b.fullName,
+        primaryMetric: metricB,
+        appearances: b.stats.appearances,
+        totalMinutes: minutesByPlayerId.get(b.id) ?? null,
+      };
+
+      result = compareForRanking(rankableA, rankableB);
+
+      // If sortOrder is asc, invert the ranking result
+      if (sortOrder === "asc") {
+        result = -result;
+      }
+      return result;
     }
 
-    return sortOrder === "desc" ? -comp : comp;
+    return sortOrder === "asc" ? result : -result;
   });
 
+  // Apply pagination in memory after sorting
   const total = playersWithStats.length;
-  const startIndex = (page - 1) * pageSize;
-  const paginatedData = playersWithStats.slice(startIndex, startIndex + pageSize);
+  const safePage = Math.max(1, page);
+  const safePageSize = Math.max(1, pageSize);
+  const totalPages = Math.ceil(total / safePageSize);
+  const startIndex = (safePage - 1) * safePageSize;
+  const paginatedData = playersWithStats.slice(
+    startIndex,
+    startIndex + safePageSize,
+  );
 
   return {
     data: paginatedData,
     total,
-    page,
-    pageSize,
-    totalPages: Math.ceil(total / pageSize) || 1,
+    page: safePage,
+    pageSize: safePageSize,
+    totalPages,
   };
 }
 
+/**
+ * Returns player details with full aggregated stats, goal breakdown,
+ * assist breakdown, recent form, and match history.
+ */
 export async function getPlayerById(id: string): Promise<PlayerDetail | null> {
   const player = await prisma.player.findUnique({
     where: { id },
     include: {
       performances: {
         include: {
-          match: true,
+          match: {
+            include: {
+              competition: {
+                select: {
+                  id: true,
+                  name: true,
+                  season: true,
+                },
+              },
+            },
+          },
         },
         orderBy: [
           { match: { date: "desc" } },
-          { match: { createdAt: "desc" } },
+          { createdAt: "desc" },
         ],
       },
     },
@@ -268,33 +298,42 @@ export async function getPlayerById(id: string): Promise<PlayerDetail | null> {
 
   if (!player) return null;
 
-  const perfRecords: PerformanceRecord[] = player.performances.map((perf) => ({
+  const { performances, ...playerFields } = player;
+
+  // Map to PerformanceRecord[] in chronological descending order
+  const records: PerformanceRecord[] = performances.map((perf) => ({
     goals: perf.goals,
     assists: perf.assists,
     minutesPlayed: perf.minutesPlayed,
-    appeared: perf.appearanceStatus === "STARTED" || perf.appearanceStatus === "SUBSTITUTE_USED",
+    appeared: didAppear(perf.appearanceStatus),
     matchCompleted: perf.match.status === "COMPLETED",
   }));
 
-  const stats = calcPlayerStats(perfRecords);
-  const goalBreakdown = calcGoalBreakdown(perfRecords);
-  const assistBreakdown = calcAssistBreakdown(perfRecords);
-  const recentForm = calcRecentForm(perfRecords);
+  const stats = calcPlayerStats(records);
+  const goalBreakdown = calcGoalBreakdown(records);
+  const assistBreakdown = calcAssistBreakdown(records);
+  const recentForm = calcRecentForm(records, 5, 3);
 
-  const matches = player.performances.map((perf) => ({
-    matchId: perf.matchId,
-    date: perf.match.date,
-    opponent: perf.match.opponent,
-    team: perf.match.team,
-    status: perf.match.status,
+  const matches: PlayerMatchDetail[] = performances.map((perf) => ({
+    performanceId: perf.id,
     appearanceStatus: perf.appearanceStatus,
     minutesPlayed: perf.minutesPlayed,
     goals: perf.goals,
     assists: perf.assists,
-    contributions: perf.goals + perf.assists,
+    notes: perf.notes,
+    match: {
+      id: perf.match.id,
+      date: perf.match.date,
+      opponent: perf.match.opponent,
+      team: perf.match.team,
+      venue: perf.match.venue,
+      venueName: perf.match.venueName,
+      scoreHome: perf.match.scoreHome,
+      scoreAway: perf.match.scoreAway,
+      status: perf.match.status,
+      competition: perf.match.competition,
+    },
   }));
-
-  const { performances, ...playerFields } = player;
 
   return {
     ...playerFields,
@@ -304,4 +343,130 @@ export async function getPlayerById(id: string): Promise<PlayerDetail | null> {
     recentForm,
     matches,
   };
+}
+
+/**
+ * Creates a new player after verifying no duplicate exists in the same team.
+ */
+export async function createPlayer(data: CreatePlayerInput): Promise<Player> {
+  const isDuplicate = await checkDuplicatePlayer(data.fullName, data.team);
+  if (isDuplicate) {
+    throw new Error(
+      `A player with the name "${data.fullName.trim()}" already exists in ${
+        data.team ? `team "${data.team.trim()}"` : "this team"
+      }.`,
+    );
+  }
+
+  return prisma.player.create({
+    data: {
+      fullName: data.fullName.trim(),
+      displayName: data.displayName?.trim() || null,
+      position: data.position,
+      preferredFoot: data.preferredFoot,
+      squadNumber: data.squadNumber ?? null,
+      team: data.team?.trim() || null,
+      nationality: data.nationality?.trim() || null,
+      imageUrl: data.imageUrl?.trim() || null,
+      notes: data.notes?.trim() || null,
+    },
+  });
+}
+
+/**
+ * Updates player attributes and validates duplicate names if modified.
+ */
+export async function updatePlayer(
+  id: string,
+  data: UpdatePlayerInput,
+): Promise<Player> {
+  const existing = await prisma.player.findUnique({ where: { id } });
+  if (!existing) {
+    throw new Error(`Player with ID "${id}" not found.`);
+  }
+
+  const checkName =
+    data.fullName !== undefined ? data.fullName : existing.fullName;
+  const checkTeam =
+    data.team !== undefined ? data.team : existing.team;
+
+  if (data.fullName !== undefined || data.team !== undefined) {
+    const isDuplicate = await checkDuplicatePlayer(checkName, checkTeam, id);
+    if (isDuplicate) {
+      throw new Error(
+        `A player with the name "${checkName.trim()}" already exists in ${
+          checkTeam ? `team "${checkTeam.trim()}"` : "this team"
+        }.`,
+      );
+    }
+  }
+
+  return prisma.player.update({
+    where: { id },
+    data: {
+      ...(data.fullName !== undefined ? { fullName: data.fullName.trim() } : {}),
+      ...(data.displayName !== undefined
+        ? { displayName: data.displayName?.trim() || null }
+        : {}),
+      ...(data.position !== undefined ? { position: data.position } : {}),
+      ...(data.preferredFoot !== undefined
+        ? { preferredFoot: data.preferredFoot }
+        : {}),
+      ...(data.squadNumber !== undefined
+        ? { squadNumber: data.squadNumber }
+        : {}),
+      ...(data.team !== undefined
+        ? { team: data.team?.trim() || null }
+        : {}),
+      ...(data.nationality !== undefined
+        ? { nationality: data.nationality?.trim() || null }
+        : {}),
+      ...(data.imageUrl !== undefined
+        ? { imageUrl: data.imageUrl?.trim() || null }
+        : {}),
+      ...(data.notes !== undefined
+        ? { notes: data.notes?.trim() || null }
+        : {}),
+    },
+  });
+}
+
+/**
+ * Archives a player by setting their archivedAt timestamp.
+ */
+export async function archivePlayer(id: string): Promise<Player> {
+  return prisma.player.update({
+    where: { id },
+    data: { archivedAt: new Date() },
+  });
+}
+
+/**
+ * Restores an archived player by setting archivedAt to null.
+ */
+export async function restorePlayer(id: string): Promise<Player> {
+  return prisma.player.update({
+    where: { id },
+    data: { archivedAt: null },
+  });
+}
+
+/**
+ * Hard deletes a player ONLY if they have zero recorded performances.
+ * Otherwise throws an informative error recommending archival.
+ */
+export async function deletePlayer(id: string): Promise<Player> {
+  const perfCount = await prisma.playerMatchPerformance.count({
+    where: { playerId: id },
+  });
+
+  if (perfCount > 0) {
+    throw new Error(
+      "Cannot delete player with recorded performances. Archive them instead.",
+    );
+  }
+
+  return prisma.player.delete({
+    where: { id },
+  });
 }

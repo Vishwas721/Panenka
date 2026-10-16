@@ -1,30 +1,40 @@
 import { prisma } from "@/server/db/client";
+import type { Competition } from "@prisma/client";
 
-export async function getCompetitions() {
-  const competitions = await prisma.competition.findMany({
+export interface CompetitionWithCount extends Competition {
+  _count: {
+    matches: number;
+  };
+}
+
+/**
+ * Get all competitions for dropdowns, filters, and management.
+ */
+export async function getCompetitions(): Promise<CompetitionWithCount[]> {
+  return prisma.competition.findMany({
+    orderBy: [
+      { season: "desc" },
+      { name: "asc" },
+    ],
     include: {
       _count: {
         select: { matches: true },
       },
     },
-    orderBy: { name: "asc" },
   });
-
-  return competitions.map((c) => ({
-    id: c.id,
-    name: c.name,
-    season: c.season,
-    notes: c.notes,
-    matchCount: c._count.matches,
-  }));
 }
 
-export async function getCompetitionById(id: string) {
+/**
+ * Get a single competition by its unique ID, including match count.
+ */
+export async function getCompetitionById(
+  id: string,
+): Promise<CompetitionWithCount | null> {
   return prisma.competition.findUnique({
     where: { id },
     include: {
-      matches: {
-        orderBy: { date: "desc" },
+      _count: {
+        select: { matches: true },
       },
     },
   });
