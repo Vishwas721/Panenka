@@ -597,8 +597,9 @@ export function PlayerProfileView({ player }: PlayerProfileViewProps) {
                     />
                     <Tooltip
                       content={({ active, payload }) => {
-                        if (active && payload && payload.length && payload[0]?.payload) {
-                          const data = payload[0].payload;
+                        const first = payload?.[0];
+                        if (active && first?.payload) {
+                          const data = first.payload;
                           return (
                             <div className="rounded-md border border-border bg-popover p-3 text-popover-foreground shadow-md">
                               <p className="font-semibold text-xs">
