@@ -1,67 +1,69 @@
-import { getPlayers } from "@/server/services/player.service";
-import { comparePlayers, type ComparisonResult } from "@/server/services/stats.service";
-import { PlayerComparisonView } from "@/components/compare/player-comparison-view";
 import type { Metadata } from "next";
+import Link from "next/link";
+import { getSquadInsights } from "@/server/services/insights.service";
+import { HeadToHead } from "@/components/compare/head-to-head";
+import { PlayerPicker } from "@/components/compare/player-picker";
+import { Masthead, EmptyState } from "@/components/pk/kit";
+import { POSITION_SHORT } from "@/components/pk/format";
+import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = {
-  title: "Player Comparison | Panenka",
-  description:
-    "Head-to-head tactical comparison of players, per-appearance efficiency, milestone breakdowns, and recent form.",
+  title: "Head to Head",
+  description: "Two players, one tale of the tape: ratings, output, impact, streaks and keywords side by side.",
 };
 
 export const dynamic = "force-dynamic";
 
 interface ComparePageProps {
-  searchParams: Promise<{
-    ids?: string;
-  }> | {
-    ids?: string;
-  };
+  searchParams: Promise<{ a?: string; b?: string }> | { a?: string; b?: string };
 }
 
 export default async function ComparePage({ searchParams }: ComparePageProps) {
-  const resolvedParams = await Promise.resolve(searchParams);
+  const params = await Promise.resolve(searchParams);
+  const squad = await getSquadInsights();
 
-  // Fetch all active players for picker
-  const allPlayersRes = await getPlayers({
-    includeArchived: false,
-    pageSize: 200,
-    sortBy: "goals",
-    sortOrder: "desc",
-  });
+  const ranked = [...squad].sort((x, y) => (y.ovr ?? -1) - (x.ovr ?? -1) || y.profile.apps - x.profile.apps);
 
-  const rawIds = resolvedParams.ids;
-  let selectedIds: string[] = [];
-
-  if (rawIds !== undefined) {
-    selectedIds = rawIds
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-  } else if (allPlayersRes.data.length >= 2) {
-    // Default to the top 2 goal scorers for instant comparison preview
-    selectedIds = allPlayersRes.data.slice(0, 2).map((p) => p.id);
+  if (ranked.length < 2) {
+    return (
+      <>
+        <Masthead kicker="Compare" title="Head to Head" accent="needs two" />
+        <EmptyState
+          title="Not enough players"
+          action={
+            <Button asChild>
+              <Link href="/players">Build the squad</Link>
+            </Button>
+          }
+        >
+          Add at least two players to put them in the ring.
+        </EmptyState>
+      </>
+    );
   }
 
-  let comparisonResult: ComparisonResult | null = null;
+  const find = (id?: string) => (id ? squad.find((s) => s.player.id === id) : undefined);
+  let a = find(params.a) ?? ranked[0]!;
+  let b = find(params.b) ?? ranked.find((p) => p.player.id !== a.player.id)!;
+  if (a.player.id === b.player.id) b = ranked.find((p) => p.player.id !== a.player.id)!;
+  if (!a) a = ranked[0]!;
 
-  if (selectedIds.length >= 2 && selectedIds.length <= 3) {
-    try {
-      comparisonResult = await comparePlayers(selectedIds);
-    } catch (err) {
-      console.error("comparePlayers error:", err);
-      // Fallback: If one ID was invalid, clear comparison
-      comparisonResult = null;
-    }
-  }
+  const options = ranked.map((p) => ({
+    id: p.player.id,
+    name: p.player.displayName || p.player.fullName,
+    position: POSITION_SHORT(p.player.position),
+    ovr: p.ovr,
+  }));
 
   return (
-    <main className="container mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <PlayerComparisonView
-        allPlayers={allPlayersRes.data}
-        initialComparison={comparisonResult}
-        initialSelectedIds={selectedIds}
-      />
-    </main>
+    <>
+      <Masthead kicker={<><span className="text-primary">●</span> Compare</>} title="Head to Head" accent="settle it">
+        Pick two players. Twenty-two rounds across ratings, output, impact, winning and streaks — the bar tells you who won each.
+      </Masthead>
+      <div className="mb-12">
+        <PlayerPicker options={options} a={a.player.id} b={b.player.id} />
+      </div>
+      <HeadToHead a={a} b={b} />
+    </>
   );
 }
