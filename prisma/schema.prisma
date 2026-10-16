@@ -125,6 +125,8 @@ model PlayerMatchPerformance {
   minutesPlayed    Int?
   goals            Int              @default(0)
   assists          Int              @default(0)
+  rating           Float?
+  isMotm           Boolean          @default(false)
   notes            String?
   isDemo           Boolean          @default(false)
   createdAt        DateTime         @default(now()) @db.Timestamptz
@@ -135,4 +137,5 @@ model PlayerMatchPerformance {
   @@index([matchId])
   @@index([goals])
   @@index([assists])
+  @@index([isMotm])
 }

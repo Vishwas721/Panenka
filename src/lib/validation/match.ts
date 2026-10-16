@@ -41,6 +41,14 @@ export const playerPerformanceSchema = z
       .int("Assists must be a whole number")
       .min(0, "Assists cannot be negative")
       .default(0),
+    rating: z
+      .number()
+      .min(1, "Rating must be between 1.0 and 10.0")
+      .max(10, "Rating must be between 1.0 and 10.0")
+      .transform((n) => Math.round(n * 10) / 10)
+      .nullable()
+      .optional(),
+    isMotm: z.boolean().optional(),
     notes: z
       .string()
       .max(1000, "Notes must be 1000 characters or fewer")
@@ -50,15 +58,24 @@ export const playerPerformanceSchema = z
   .refine(
     (data) => {
       if (!didAppear(data.appearanceStatus)) {
-        return data.goals === 0 && data.assists === 0 && !data.minutesPlayed;
+        return (
+          data.goals === 0 &&
+          data.assists === 0 &&
+          !data.minutesPlayed &&
+          (data.rating === null || data.rating === undefined) &&
+          !data.isMotm
+        );
       }
       return true;
     },
     {
       message:
-        "Players who did not appear cannot have goals, assists, or minutes",
+        "Players who did not appear cannot have goals, assists, minutes, a rating, or MOTM",
     },
   );
+
+const singleMotm = (perfs: { isMotm?: boolean }[] | undefined) =>
+  (perfs ?? []).filter((p) => p.isMotm).length <= 1;
 
 const matchBaseSchema = z.object({
   date: z.coerce.date(),
@@ -113,9 +130,17 @@ export const createMatchSchema = matchBaseSchema.refine(
     message: "Provide both home and away scores, or neither",
     path: ["scoreHome"],
   },
-);
+).refine((data) => singleMotm(data.performances), {
+  message: "Only one player can be Man of the Match",
+  path: ["performances"],
+});
 
-export const updateMatchSchema = matchBaseSchema.partial();
+export const updateMatchSchema = matchBaseSchema
+  .partial()
+  .refine((data) => singleMotm(data.performances), {
+    message: "Only one player can be Man of the Match",
+    path: ["performances"],
+  });
 
 export type PlayerPerformanceInput = z.infer<typeof playerPerformanceSchema>;
 export type CreateMatchInput = z.infer<typeof createMatchSchema>;

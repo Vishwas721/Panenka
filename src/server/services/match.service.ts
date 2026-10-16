@@ -53,6 +53,8 @@ export interface MatchPerformanceDetail {
   minutesPlayed: number | null;
   goals: number;
   assists: number;
+  rating: number | null;
+  isMotm: boolean;
   notes: string | null;
   player: {
     id: string;
@@ -280,6 +282,8 @@ export async function createMatch(data: CreateMatchInput): Promise<MatchDetail> 
           minutesPlayed: p.minutesPlayed ?? null,
           goals: p.goals ?? 0,
           assists: p.assists ?? 0,
+          rating: p.rating ?? null,
+          isMotm: p.isMotm ?? false,
           notes: p.notes?.trim() || null,
         })),
       });
@@ -433,6 +437,8 @@ export async function updateMatch(
               minutesPlayed: p.minutesPlayed ?? null,
               goals: p.goals ?? 0,
               assists: p.assists ?? 0,
+              rating: p.rating ?? null,
+              isMotm: p.isMotm ?? false,
               notes: p.notes?.trim() || null,
             },
           });
@@ -445,6 +451,8 @@ export async function updateMatch(
               minutesPlayed: p.minutesPlayed ?? null,
               goals: p.goals ?? 0,
               assists: p.assists ?? 0,
+              rating: p.rating ?? null,
+              isMotm: p.isMotm ?? false,
               notes: p.notes?.trim() || null,
             },
           });

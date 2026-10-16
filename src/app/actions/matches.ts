@@ -58,6 +58,11 @@ function cleanInput(raw: any) {
           : Number.parseInt(perf.minutesPlayed, 10),
       goals: Number(perf.goals) || 0,
       assists: Number(perf.assists) || 0,
+      rating:
+        perf.rating === "" || perf.rating === null || perf.rating === undefined
+          ? null
+          : Number(perf.rating),
+      isMotm: Boolean(perf.isMotm),
     }));
   }
 
