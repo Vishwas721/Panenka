@@ -46,7 +46,7 @@ pnpm verify           # Run all checks (lint, typecheck, test, build)
 
 ## Database
 - PostgreSQL 16 via Docker Compose
-- Port: 5433 (to avoid conflict with local Postgres on 5432)
+- Port: 5434 (to avoid conflict with local Postgres on 5432 and other containers on 5433)
 - Connection: see `.env.example`
 - All timestamps in UTC (`timestamptz`)
 - Stable cuid primary keys

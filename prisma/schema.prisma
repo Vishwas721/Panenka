@@ -1,0 +1,138 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ----- Enums -----
+
+enum Position {
+  GK
+  CB
+  LB
+  RB
+  CDM
+  CM
+  CAM
+  LW
+  RW
+  ST
+  UNKNOWN
+}
+
+enum PreferredFoot {
+  LEFT
+  RIGHT
+  BOTH
+  UNKNOWN
+}
+
+enum MatchStatus {
+  SCHEDULED
+  COMPLETED
+  ABANDONED
+}
+
+enum MatchVenue {
+  HOME
+  AWAY
+  NEUTRAL
+}
+
+enum AppearanceStatus {
+  STARTED
+  SUBSTITUTE_USED
+  UNUSED_SUBSTITUTE
+  DID_NOT_PLAY
+}
+
+// ----- Models -----
+
+model Competition {
+  id        String   @id @default(cuid())
+  name      String
+  season    String?
+  notes     String?
+  isDemo    Boolean  @default(false)
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  matches Match[]
+
+  @@unique([name, season])
+  @@index([name])
+}
+
+model Player {
+  id           String        @id @default(cuid())
+  fullName     String
+  displayName  String?
+  position     Position      @default(UNKNOWN)
+  preferredFoot PreferredFoot @default(UNKNOWN)
+  squadNumber  Int?
+  team         String?
+  nationality  String?
+  imageUrl     String?
+  notes        String?
+  isDemo       Boolean       @default(false)
+  archivedAt   DateTime?     @db.Timestamptz
+  createdAt    DateTime      @default(now()) @db.Timestamptz
+  updatedAt    DateTime      @updatedAt @db.Timestamptz
+
+  performances PlayerMatchPerformance[]
+
+  @@index([fullName])
+  @@index([team])
+  @@index([position])
+  @@index([archivedAt])
+}
+
+model Match {
+  id            String      @id @default(cuid())
+  date          DateTime    @db.Timestamptz
+  opponent      String
+  team          String?
+  competitionId String?
+  competition   Competition? @relation(fields: [competitionId], references: [id], onDelete: SetNull)
+  venue         MatchVenue?
+  venueName     String?
+  scoreHome     Int?
+  scoreAway     Int?
+  status        MatchStatus @default(SCHEDULED)
+  notes         String?
+  isDemo        Boolean     @default(false)
+  createdAt     DateTime    @default(now()) @db.Timestamptz
+  updatedAt     DateTime    @updatedAt @db.Timestamptz
+
+  performances PlayerMatchPerformance[]
+
+  @@index([date])
+  @@index([status])
+  @@index([opponent])
+  @@index([competitionId])
+}
+
+model PlayerMatchPerformance {
+  id               String           @id @default(cuid())
+  playerId         String
+  player           Player           @relation(fields: [playerId], references: [id], onDelete: Restrict)
+  matchId          String
+  match            Match            @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  appearanceStatus AppearanceStatus
+  minutesPlayed    Int?
+  goals            Int              @default(0)
+  assists          Int              @default(0)
+  notes            String?
+  isDemo           Boolean          @default(false)
+  createdAt        DateTime         @default(now()) @db.Timestamptz
+  updatedAt        DateTime         @updatedAt @db.Timestamptz
+
+  @@unique([playerId, matchId])
+  @@index([playerId])
+  @@index([matchId])
+  @@index([goals])
+  @@index([assists])
+}
