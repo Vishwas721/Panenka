@@ -84,17 +84,25 @@ const KeywordTile = React.memo(function KeywordTile({ k, owners, squadSize }: { 
 
 export function Codex({
   catalogue,
-  owners,
+  players,
+  ownerIds,
   templates,
   instances,
   squadSize,
 }: {
   catalogue: KeywordDef[];
-  owners: Record<string, Owner[]>;
+  /** Owner details keyed by player id, sent once instead of per keyword. */
+  players: Record<string, Owner>;
+  ownerIds: Record<string, string[]>;
   templates: DynamicTemplate[];
   instances: DynamicInstance[];
   squadSize: number;
 }) {
+  const owners = React.useMemo(() => {
+    const out: Record<string, Owner[]> = {};
+    for (const [kw, ids] of Object.entries(ownerIds)) out[kw] = ids.map((id) => players[id]!).filter(Boolean);
+    return out;
+  }, [ownerIds, players]);
   const [query, setQuery] = React.useState("");
   const [rarities, setRarities] = React.useState<Set<Rarity>>(new Set());
   const [status, setStatus] = React.useState<Status>("all");

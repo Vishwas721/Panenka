@@ -15,23 +15,25 @@ export const dynamic = "force-dynamic";
 export default async function KeywordsPage() {
   const squad = await getSquadInsights();
 
-  const owners: Record<string, Owner[]> = {};
+  const players: Record<string, Owner> = {};
+  const ownerIds: Record<string, string[]> = {};
   const dynamicMap = new Map<string, DynamicInstance>();
 
   for (const i of squad) {
     const owner: Owner = { id: i.player.id, name: shortName(i.player), fullName: i.player.fullName, imageUrl: i.player.imageUrl };
+    players[owner.id] = owner;
     for (const k of i.keywords.unlocked) {
       if (k.dynamic) {
         const inst = dynamicMap.get(k.id) ?? { id: k.id, template: k.id.split(":")[0]!, name: k.name, rarity: k.rarity, family: k.family, description: k.description, owners: [] };
         inst.owners.push(owner);
         dynamicMap.set(k.id, inst);
       } else {
-        (owners[k.id] ??= []).push(owner);
+        (ownerIds[k.id] ??= []).push(owner.id);
       }
     }
   }
 
-  const ownedCount = Object.keys(owners).length;
+  const ownedCount = Object.keys(ownerIds).length;
 
   return (
     <>
@@ -43,7 +45,7 @@ export default async function KeywordsPage() {
         Every title a player can earn from their ratings, goals, assists and awards — {ownedCount} already claimed by the squad,
         plus {DYNAMIC_TEMPLATES.length} dynamic families that mint new honours for every opponent, competition, season and month.
       </Masthead>
-      <Codex catalogue={KEYWORD_CATALOGUE} owners={owners} templates={DYNAMIC_TEMPLATES} instances={[...dynamicMap.values()]} squadSize={squad.length} />
+      <Codex catalogue={KEYWORD_CATALOGUE} players={players} ownerIds={ownerIds} templates={DYNAMIC_TEMPLATES} instances={[...dynamicMap.values()]} squadSize={squad.length} />
     </>
   );
 }
