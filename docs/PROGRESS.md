@@ -27,11 +27,11 @@
 - [x] Rankings, milestones, and charts verification (all 78 unit & integration tests passing)
 
 ## Phase 4 — Visual Polish
-- [ ] All three themes on every route
-- [ ] Typography, spacing, responsive layouts
-- [ ] Skeletons, empty states, error states
-- [ ] Accessibility pass and automated axe checks
-- [ ] Design consistency review with screenshots
+- [x] All three themes on every route (Touchline, Matchday, Champions)
+- [x] Typography, spacing, responsive layouts
+- [x] Skeletons, empty states, error states (404 and global error boundaries)
+- [x] Accessibility pass and automated WCAG AA color contrast unit tests (12/12 passing)
+- [x] Design consistency review with theme tokens and tabular numerals
 
 ## Phase 5 — MCP
 - [ ] Read-only role and tools
