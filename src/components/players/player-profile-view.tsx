@@ -1,952 +1,639 @@
-"use client";
-
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { ArrowLeft, ArrowDownRight, ArrowUpRight, Minus, Star, Flame } from "lucide-react";
+import type { PlayerInsightDetail } from "@/server/services/insights.service";
+import type { SplitLine, TimelinePoint } from "@/lib/stats/profile";
+import { ATTRIBUTE_KEYS, ATTRIBUTE_META } from "@/lib/stats/attributes";
+import { FAMILY_LABELS, KEYWORD_CATALOGUE, RARITIES, rarityRank, type Family, type Keyword } from "@/lib/stats/keywords";
+import { cn } from "@/lib/utils";
+import { PlayerCard } from "@/components/pk/player-card";
+import { toCardData } from "@/components/pk/card-data";
+import { Radar } from "@/components/pk/radar";
 import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  Legend,
-  CartesianGrid,
-} from "recharts";
-import { PlayerAvatar } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { PlayerFormDialog } from "@/components/players/player-form-dialog";
-import { PositionBadge } from "@/components/players/player-card";
-import {
-  archivePlayerAction,
-  restorePlayerAction,
-  deletePlayerAction,
-} from "@/app/actions/players";
-import type { PlayerDetail, PlayerMatchDetail } from "@/server/services/player.service";
-import { didAppear } from "@/lib/validation";
-import {
-  ArrowLeft,
-  Edit,
-  Archive,
-  RotateCcw,
-  Trash2,
-  Calendar,
-  Globe,
-  Footprints,
-  Shield,
-  Clock,
-  Flame,
-  Award,
-  Trophy,
-  Target,
-  Sparkles,
-  ExternalLink,
-  ChevronLeft,
-  ChevronRight,
-  Search,
-  AlertCircle,
-  TrendingUp,
-} from "lucide-react";
+  EmptyState, FormStrip, KeywordChip, Meter, RarityDot, RARITY_LABEL, RatingPill, ResultBadge, SectionHeading, Stat,
+} from "@/components/pk/kit";
+import { dash, fmtDate, fmtNum, fmtPct, fmtRating, fmtSigned, POSITION_LABEL, ratingVar } from "@/components/pk/format";
+import { RatingChart } from "./profile/rating-chart";
+import { ProfileTabs } from "./profile/profile-tabs";
 
-interface PlayerProfileViewProps {
-  player: PlayerDetail;
-}
+type P = PlayerInsightDetail;
 
-export function PlayerProfileView({ player }: PlayerProfileViewProps) {
-  const router = useRouter();
-  const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
-  const [isArchiving, setIsArchiving] = React.useState(false);
-  const [isRestoring, setIsRestoring] = React.useState(false);
-  const [isDeleting, setIsDeleting] = React.useState(false);
-  const [isLoading, setIsLoading] = React.useState(false);
-
-  // Match history pagination & filter
-  const [matchSearch, setMatchSearch] = React.useState("");
-  const [currentPage, setCurrentPage] = React.useState(1);
-  const pageSize = 8;
-
-  // Mounted guard for client-only Recharts rendering
-  const [isChartMounted, setIsChartMounted] = React.useState(false);
-  React.useEffect(() => {
-    setIsChartMounted(true);
-  }, []);
-
-  const isArchived = Boolean(player.archivedAt);
-  const { stats, goalBreakdown, assistBreakdown, recentForm, matches } = player;
-
-  const handleArchive = async () => {
-    setIsLoading(true);
-    try {
-      await archivePlayerAction(player.id);
-      setIsArchiving(false);
-      router.refresh();
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleRestore = async () => {
-    setIsLoading(true);
-    try {
-      await restorePlayerAction(player.id);
-      setIsRestoring(false);
-      router.refresh();
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    setIsLoading(true);
-    try {
-      const res = await deletePlayerAction(player.id);
-      if (res.success) {
-        setIsDeleting(false);
-        router.push("/players");
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Filter completed appearances for the chart chronologically (oldest to newest)
-  const chartAppearances = React.useMemo(() => {
-    return matches
-      .filter((m) => m.match.status === "COMPLETED" && didAppear(m.appearanceStatus))
-      .slice()
-      .reverse() // from oldest to newest for left-to-right progression
-      .map((m, index) => {
-        const d = new Date(m.match.date);
-        const dateStr = d.toLocaleDateString("en-US", {
-          month: "numeric",
-          day: "numeric",
-        });
-        return {
-          matchIndex: index + 1,
-          label: `M${index + 1} (${m.match.opponent.slice(0, 8)})`,
-          date: dateStr,
-          opponent: m.match.opponent,
-          competition: m.match.competition?.name || "Friendly",
-          goals: m.goals,
-          assists: m.assists,
-          contributions: m.goals + m.assists,
-          minutes: m.minutesPlayed,
-        };
-      });
-  }, [matches]);
-
-  // Milestone matches: performances with multi-goal matches (braces, hat-tricks, 4-goal, 5+)
-  const milestonePerformances = React.useMemo(() => {
-    return matches
-      .filter(
-        (m) =>
-          m.match.status === "COMPLETED" &&
-          didAppear(m.appearanceStatus) &&
-          m.goals >= 2
-      )
-      .map((m) => {
-        let milestoneType = "Brace (2G)";
-        let badgeVariant: "warning" | "goals" | "primary" = "goals";
-        if (m.goals === 2) {
-          milestoneType = "Brace (2 Goals)";
-          badgeVariant = "warning";
-        } else if (m.goals === 3) {
-          milestoneType = "Hat-trick (3 Goals)";
-          badgeVariant = "goals";
-        } else if (m.goals === 4) {
-          milestoneType = "4-Goal Performance";
-          badgeVariant = "goals";
-        } else if (m.goals >= 5) {
-          milestoneType = `${m.goals}-Goal Masterclass`;
-          badgeVariant = "goals";
-        }
-        return {
-          ...m,
-          milestoneType,
-          badgeVariant,
-        };
-      });
-  }, [matches]);
-
-  // Filtered and paginated match history
-  const filteredMatches = React.useMemo(() => {
-    const q = matchSearch.trim().toLowerCase();
-    if (!q) return matches;
-    return matches.filter(
-      (m) =>
-        m.match.opponent.toLowerCase().includes(q) ||
-        (m.match.competition?.name &&
-          m.match.competition.name.toLowerCase().includes(q)) ||
-        (m.match.team && m.match.team.toLowerCase().includes(q))
-    );
-  }, [matches, matchSearch]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredMatches.length / pageSize));
-  const paginatedMatches = React.useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredMatches.slice(start, start + pageSize);
-  }, [filteredMatches, currentPage, pageSize]);
+export function PlayerProfileView({ insight, actions }: { insight: P; actions?: React.ReactNode }) {
+  const { player, profile } = insight;
+  const hasApps = profile.apps > 0;
 
   return (
-    <div className="space-y-8 pb-12">
-      {/* Navigation Breadcrumb */}
-      <div>
-        <Link
-          href="/players"
-          className="inline-flex items-center text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="mr-1.5 h-4 w-4" />
-          Back to Squad List
-        </Link>
-      </div>
+    <div>
+      <Link href="/players" className="eyebrow mb-6 inline-flex items-center gap-1.5 hover:text-foreground">
+        <ArrowLeft className="h-3 w-3" /> Squad
+      </Link>
 
-      {/* Header Profile Card */}
-      <Card className="overflow-hidden border-border bg-card shadow-sm">
-        <div
-          className={`h-2.5 w-full ${
-            isArchived ? "bg-muted-foreground/30" : "bg-primary"
-          }`}
+      <Hero insight={insight} actions={actions} />
+
+      {hasApps ? (
+        <ProfileTabs
+          tabs={[
+            { id: "overview", label: "Overview", content: <Overview insight={insight} /> },
+            { id: "matches", label: "Matches", count: profile.apps, content: <Matches timeline={profile.timeline} /> },
+            { id: "splits", label: "Splits", content: <Splits insight={insight} /> },
+            { id: "keywords", label: "Keywords", count: insight.keywords.unlocked.length, content: <Keywords insight={insight} /> },
+            { id: "records", label: "Records", content: <Records insight={insight} /> },
+          ]}
         />
-        <CardContent className="p-6 sm:p-8">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-            {/* Identity & Basic Info */}
-            <div className="flex items-start sm:items-center gap-5">
-              <div className="relative shrink-0">
-                <PlayerAvatar
-                  name={player.fullName}
-                  imageUrl={player.imageUrl}
-                  size="xl"
-                  className="h-20 w-20 ring-2 ring-border"
-                />
-                {player.squadNumber !== null && (
-                  <span className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-primary font-mono text-xs font-bold text-primary-foreground shadow-md ring-2 ring-background">
-                    {player.squadNumber}
-                  </span>
-                )}
-              </div>
+      ) : (
+        <EmptyState
+          title="No minutes yet"
+          action={
+            <Link href="/matches/new" className="inline-flex h-9 items-center rounded-full bg-primary px-4 font-mono text-[0.72rem] font-semibold uppercase tracking-[0.12em] text-primary-foreground">
+              Log a match
+            </Link>
+          }
+        >
+          {player.fullName.split(" ")[0]}&apos;s card, attributes and keywords come alive after their first completed appearance.
+        </EmptyState>
+      )}
+    </div>
+  );
+}
 
-              <div className="space-y-1.5">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="font-display text-2xl font-bold tracking-tight sm:text-3xl text-foreground">
-                    {player.fullName}
-                  </h1>
-                  {player.displayName &&
-                    player.displayName !== player.fullName && (
-                      <span className="text-base text-muted-foreground italic">
-                        &ldquo;{player.displayName}&rdquo;
-                      </span>
-                    )}
-                  {isArchived && (
-                    <Badge variant="secondary" className="ml-2 font-mono text-xs">
-                      Archived
-                    </Badge>
-                  )}
-                </div>
+// ---------------------------------------------------------------------------
+// Hero
+// ---------------------------------------------------------------------------
 
-                <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                  <PositionBadge position={player.position} />
-                  {player.team && (
-                    <span className="inline-flex items-center gap-1 font-medium text-foreground">
-                      <Shield className="h-3.5 w-3.5 text-primary" />
-                      {player.team}
-                    </span>
-                  )}
-                  {player.nationality && (
-                    <span className="inline-flex items-center gap-1">
-                      <Globe className="h-3.5 w-3.5 text-muted-foreground" />
-                      {player.nationality}
-                    </span>
-                  )}
-                  {player.preferredFoot !== "UNKNOWN" && (
-                    <span className="inline-flex items-center gap-1 capitalize">
-                      <Footprints className="h-3.5 w-3.5 text-muted-foreground" />
-                      {player.preferredFoot.toLowerCase()} foot
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
+function Hero({ insight, actions }: { insight: P; actions?: React.ReactNode }) {
+  const { player, profile, keywords, archetype, ranks } = insight;
+  const trend = profile.rating.last5 !== null && profile.rating.avg !== null ? profile.rating.last5 - profile.rating.avg : null;
+  const TrendIcon = trend === null || Math.abs(trend) < 0.15 ? Minus : trend > 0 ? ArrowUpRight : ArrowDownRight;
+  const [first, ...rest] = player.fullName.trim().split(/\s+/);
+  const last = rest.join(" ");
 
-            {/* Actions Bar */}
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsEditDialogOpen(true)}
-                className="gap-1.5"
-              >
-                <Edit className="h-4 w-4" />
-                Edit Profile
-              </Button>
-              {isArchived ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5 text-emerald-500 hover:text-emerald-400 border-emerald-500/30"
-                  onClick={() => setIsRestoring(true)}
-                >
-                  <RotateCcw className="h-4 w-4" />
-                  Restore
-                </Button>
-              ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5 text-amber-500 hover:text-amber-400 border-amber-500/30"
-                  onClick={() => setIsArchiving(true)}
-                >
-                  <Archive className="h-4 w-4" />
-                  Archive
-                </Button>
-              )}
-              {stats.appearances === 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5 text-destructive hover:text-destructive border-destructive/30"
-                  onClick={() => setIsDeleting(true)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Delete
-                </Button>
-              )}
-            </div>
-          </div>
-
-          {/* Notes callout */}
-          {player.notes && (
-            <div className="mt-5 rounded-md border border-border/60 bg-secondary/20 p-3 text-sm text-foreground/85">
-              <span className="font-semibold text-muted-foreground font-mono text-xs uppercase tracking-wider block mb-0.5">
-                Scouting / Tactical Notes
-              </span>
-              <p className="text-foreground/90 whitespace-pre-line">{player.notes}</p>
-            </div>
-          )}
-
-          {/* Core Career Totals Grid */}
-          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4 pt-6 border-t border-border/60">
-            <div className="rounded-lg border border-border/70 bg-card p-4 text-center">
-              <span className="text-[11px] font-mono font-semibold uppercase tracking-wider text-muted-foreground block">
-                Appearances
-              </span>
-              <div className="mt-1 font-mono text-3xl font-bold tabular-nums text-foreground">
-                {stats.appearances}
-              </div>
-              <span className="text-[11px] text-muted-foreground font-mono">
-                {matches.filter((m) => m.appearanceStatus === "STARTED").length} starts ·{" "}
-                {matches.filter((m) => m.appearanceStatus === "SUBSTITUTE_USED").length} sub
-              </span>
-            </div>
-
-            <div className="rounded-lg border border-border/70 bg-card p-4 text-center">
-              <span className="text-[11px] font-mono font-semibold uppercase tracking-wider text-muted-foreground block">
-                Goals
-              </span>
-              <div className="mt-1 font-mono text-3xl font-bold tabular-nums text-primary">
-                {stats.goals}
-              </div>
-              <span className="text-[11px] text-muted-foreground font-mono">
-                {stats.goalsPerAppearance !== null
-                  ? `${stats.goalsPerAppearance.toFixed(2)} / app`
-                  : "—"}
-              </span>
-            </div>
-
-            <div className="rounded-lg border border-border/70 bg-card p-4 text-center">
-              <span className="text-[11px] font-mono font-semibold uppercase tracking-wider text-muted-foreground block">
-                Assists
-              </span>
-              <div className="mt-1 font-mono text-3xl font-bold tabular-nums text-sky-400">
-                {stats.assists}
-              </div>
-              <span className="text-[11px] text-muted-foreground font-mono">
-                {stats.assistsPerAppearance !== null
-                  ? `${stats.assistsPerAppearance.toFixed(2)} / app`
-                  : "—"}
-              </span>
-            </div>
-
-            <div className="rounded-lg border border-border/70 bg-card p-4 text-center">
-              <span className="text-[11px] font-mono font-semibold uppercase tracking-wider text-muted-foreground block">
-                Total Contributions
-              </span>
-              <div className="mt-1 font-mono text-3xl font-bold tabular-nums text-purple-400">
-                {stats.goalContributions}
-              </div>
-              <span className="text-[11px] text-muted-foreground font-mono">
-                {stats.contributionsPerAppearance !== null
-                  ? `${stats.contributionsPerAppearance.toFixed(2)} / app`
-                  : "—"}
-              </span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Performance Overview: Rates, Chart & Recent Form */}
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="font-display text-xl font-bold tracking-tight">Performance Overview</h2>
-            <p className="text-xs text-muted-foreground">
-              Per-appearance efficiency metrics, match progression, and current form trends.
-            </p>
-          </div>
-        </div>
-
-        {/* Efficiency Rates & Recent Form Row */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          {/* Per-Appearance Rates Card */}
-          <Card className="md:col-span-2">
-            <CardHeader className="pb-3">
-              <CardTitle className="font-display text-base flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-primary" />
-                Per-Appearance Efficiency Rates
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Derived directly from completed match appearances.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="rounded-md border border-border/60 bg-secondary/15 p-3 text-center">
-                  <span className="text-[10px] font-mono font-semibold text-muted-foreground uppercase tracking-wider">
-                    Goals / App
-                  </span>
-                  <div className="mt-1 font-mono text-2xl font-bold tabular-nums text-primary">
-                    {stats.goalsPerAppearance !== null
-                      ? stats.goalsPerAppearance.toFixed(2)
-                      : "—"}
-                  </div>
-                  <span className="text-[10px] text-muted-foreground font-mono">
-                    {stats.goals} in {stats.appearances} apps
-                  </span>
-                </div>
-
-                <div className="rounded-md border border-border/60 bg-secondary/15 p-3 text-center">
-                  <span className="text-[10px] font-mono font-semibold text-muted-foreground uppercase tracking-wider">
-                    Assists / App
-                  </span>
-                  <div className="mt-1 font-mono text-2xl font-bold tabular-nums text-sky-400">
-                    {stats.assistsPerAppearance !== null
-                      ? stats.assistsPerAppearance.toFixed(2)
-                      : "—"}
-                  </div>
-                  <span className="text-[10px] text-muted-foreground font-mono">
-                    {stats.assists} in {stats.appearances} apps
-                  </span>
-                </div>
-
-                <div className="rounded-md border border-border/60 bg-secondary/15 p-3 text-center">
-                  <span className="text-[10px] font-mono font-semibold text-muted-foreground uppercase tracking-wider">
-                    G+A / App
-                  </span>
-                  <div className="mt-1 font-mono text-2xl font-bold tabular-nums text-purple-400">
-                    {stats.contributionsPerAppearance !== null
-                      ? stats.contributionsPerAppearance.toFixed(2)
-                      : "—"}
-                  </div>
-                  <span className="text-[10px] text-muted-foreground font-mono">
-                    {stats.goalContributions} in {stats.appearances} apps
-                  </span>
-                </div>
-              </div>
-
-              {/* Minutes context */}
-              <div className="mt-4 flex items-center justify-between text-xs font-mono text-muted-foreground border-t border-border/50 pt-3">
-                <span className="flex items-center gap-1.5">
-                  <Clock className="h-3.5 w-3.5" /> Total Minutes Recorded:
-                </span>
-                <span className="font-bold text-foreground tabular-nums">
-                  {matches.some((m) => m.minutesPlayed !== null)
-                    ? `${matches.reduce((sum, m) => sum + (m.minutesPlayed ?? 0), 0)}'`
-                    : "—"}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Recent Form Card with "Insufficient data" Guard */}
-          <Card className="flex flex-col justify-between">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="font-display text-base flex items-center gap-2">
-                  <Flame className="h-4 w-4 text-amber-500" />
-                  Recent Form
-                </CardTitle>
-                <Badge variant="outline" className="font-mono text-[10px]">
-                  Last 5 Apps
-                </Badge>
-              </div>
-              <CardDescription className="text-xs">
-                Trajectory across recent competitive fixtures.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex-1 flex flex-col justify-center">
-              {!recentForm.sufficient ? (
-                <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-center">
-                  <div className="flex items-center justify-center gap-1.5 text-amber-500 font-semibold text-xs font-mono">
-                    <AlertCircle className="h-4 w-4 shrink-0" />
-                    Insufficient data
-                  </div>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    Requires at least 3 appearances to establish form trend.
-                  </p>
-                  <p className="mt-1 text-[10px] font-mono text-muted-foreground">
-                    Current sample: {recentForm.sampleSize} of 3 required
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex items-baseline justify-between border-b border-border/40 pb-2">
-                    <span className="text-xs text-muted-foreground font-mono">Sample Size</span>
-                    <span className="font-mono text-xs font-semibold text-foreground">
-                      Last {recentForm.sampleSize} appearances
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">Recent Goals</span>
-                    <span className="font-mono text-lg font-bold text-primary tabular-nums">
-                      {recentForm.goals}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">Recent Assists</span>
-                    <span className="font-mono text-lg font-bold text-sky-400 tabular-nums">
-                      {recentForm.assists}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between border-t border-border/40 pt-2">
-                    <span className="text-xs font-semibold text-foreground">Recent G+A</span>
-                    <span className="font-mono text-lg font-bold text-purple-400 tabular-nums">
-                      {recentForm.goalContributions}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Goals & Assists by Match Chart */}
-        <Card>
-          <CardHeader className="pb-2">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
-              <CardTitle className="font-display text-base">
-                Goals & Assists by Match
-              </CardTitle>
-              <span className="text-xs font-mono text-muted-foreground">
-                Chronological sequence ({chartAppearances.length} match appearances)
-              </span>
-            </div>
-            <CardDescription className="text-xs">
-              Direct match-by-match production in completed fixtures.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-2">
-            {chartAppearances.length === 0 ? (
-              <div className="flex h-56 flex-col items-center justify-center text-center text-sm text-muted-foreground">
-                <Target className="h-8 w-8 mb-2 opacity-40" />
-                <p>No completed appearances to chart yet.</p>
-              </div>
-            ) : !isChartMounted ? (
-              <div className="flex h-56 items-center justify-center text-xs font-mono text-muted-foreground">
-                Loading production chart...
-              </div>
-            ) : (
-              <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={chartAppearances}
-                    margin={{ top: 10, right: 10, left: -20, bottom: 20 }}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      vertical={false}
-                      stroke="currentColor"
-                      className="text-border/40"
-                    />
-                    <XAxis
-                      dataKey="label"
-                      tick={{ fontSize: 10 }}
-                      stroke="currentColor"
-                      className="text-muted-foreground"
-                      tickLine={false}
-                      angle={-20}
-                      textAnchor="end"
-                      height={40}
-                    />
-                    <YAxis
-                      allowDecimals={false}
-                      tick={{ fontSize: 10 }}
-                      stroke="currentColor"
-                      className="text-muted-foreground"
-                      tickLine={false}
-                    />
-                    <Tooltip
-                      content={({ active, payload }) => {
-                        const first = payload?.[0];
-                        if (active && first?.payload) {
-                          const data = first.payload;
-                          return (
-                            <div className="rounded-md border border-border bg-popover p-3 text-popover-foreground shadow-md">
-                              <p className="font-semibold text-xs">
-                                vs {data.opponent}
-                              </p>
-                              <p className="text-[10px] text-muted-foreground font-mono">
-                                {data.competition} · {data.date}
-                              </p>
-                              {data.minutes !== null && (
-                                <p className="text-[10px] text-muted-foreground font-mono">
-                                  {data.minutes} minutes played
-                                </p>
-                              )}
-                              <div className="mt-2 space-y-1 text-xs font-mono">
-                                <div className="flex items-center justify-between gap-4 text-primary">
-                                  <span>Goals:</span>
-                                  <span className="font-bold">{data.goals}</span>
-                                </div>
-                                <div className="flex items-center justify-between gap-4 text-sky-400">
-                                  <span>Assists:</span>
-                                  <span className="font-bold">{data.assists}</span>
-                                </div>
-                                <div className="flex items-center justify-between gap-4 text-purple-400 border-t border-border pt-1">
-                                  <span>Contributions:</span>
-                                  <span className="font-bold">{data.contributions}</span>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        }
-                        return null;
-                      }}
-                    />
-                    <Legend
-                      verticalAlign="top"
-                      height={32}
-                      formatter={(val) => (
-                        <span className="text-xs font-mono capitalize">{val}</span>
-                      )}
-                    />
-                    <Bar
-                      dataKey="goals"
-                      name="Goals"
-                      fill="hsl(var(--primary))"
-                      radius={[3, 3, 0, 0]}
-                      maxBarSize={28}
-                    />
-                    <Bar
-                      dataKey="assists"
-                      name="Assists"
-                      fill="hsl(var(--assists))"
-                      radius={[3, 3, 0, 0]}
-                      maxBarSize={28}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+  return (
+    <section className="relative mb-12 grid gap-10 lg:grid-cols-[auto_1fr] lg:gap-14">
+      <div className="pitch-lines pointer-events-none absolute -inset-x-10 -top-10 bottom-0 -z-10 opacity-70 [mask-image:radial-gradient(closest-side,black,transparent)]" />
+      <div className="rise mx-auto lg:mx-0">
+        <PlayerCard data={toCardData(insight)} size="lg" />
       </div>
 
-      {/* Milestone History Section */}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <div>
-              <CardTitle className="font-display text-lg flex items-center gap-2">
-                <Trophy className="h-5 w-5 text-amber-500" />
-                Milestone History
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Multi-goal performances (Braces, Hat-tricks, 4-Goal, and 5+ Matches) with links to match details.
-              </CardDescription>
-            </div>
-
-            {/* Quick counters pill group */}
-            <div className="flex flex-wrap items-center gap-1.5 font-mono text-xs">
-              <span className="inline-flex items-center gap-1 rounded bg-secondary px-2 py-1">
-                Braces: <strong className="text-foreground">{goalBreakdown.braces}</strong>
-              </span>
-              <span className="inline-flex items-center gap-1 rounded bg-secondary px-2 py-1">
-                Hat-tricks: <strong className="text-primary">{goalBreakdown.hatTricks}</strong>
-              </span>
-              <span className="inline-flex items-center gap-1 rounded bg-secondary px-2 py-1">
-                4-Goal: <strong className="text-foreground">{goalBreakdown.fourGoalMatches}</strong>
-              </span>
-              <span className="inline-flex items-center gap-1 rounded bg-secondary px-2 py-1">
-                5+: <strong className="text-foreground">{goalBreakdown.fiveOrMoreGoalMatches}</strong>
-              </span>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {milestonePerformances.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-              <Award className="h-8 w-8 mx-auto mb-2 opacity-30" />
-              No multi-goal milestones recorded yet for this player.
-            </div>
+      <div className="rise min-w-0 [animation-delay:120ms]">
+        <div className="eyebrow flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="text-primary">{player.squadNumber != null ? `No. ${player.squadNumber}` : "Squad"}</span>
+          <span>{POSITION_LABEL[player.position]}</span>
+          {player.team && <span>{player.team}</span>}
+          {player.nationality && <span>{player.nationality}</span>}
+          {player.preferredFoot !== "UNKNOWN" && <span>{player.preferredFoot.toLowerCase()} foot</span>}
+          {player.archivedAt && <span className="text-warning">Archived</span>}
+        </div>
+        <h1 className="mt-3 font-display font-black uppercase leading-[0.8] tracking-tight">
+          {last ? (
+            <>
+              <span className="block font-serif text-[clamp(1.8rem,4vw,3rem)] font-normal normal-case italic tracking-normal text-muted-foreground">{first}</span>
+              <span className="block break-words text-[clamp(3.4rem,9vw,8rem)]">{last}</span>
+            </>
           ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {milestonePerformances.map((m) => (
-                <div
-                  key={m.performanceId}
-                  className="group relative flex flex-col justify-between rounded-lg border border-border/80 bg-secondary/15 p-4 transition-all hover:border-primary/50 hover:bg-secondary/30"
-                >
-                  <div>
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <Badge variant="goals" className="font-mono text-xs font-bold">
-                        {m.milestoneType}
-                      </Badge>
-                      <span className="text-[11px] font-mono text-muted-foreground">
-                        {new Date(m.match.date).toLocaleDateString("en-US", {
-                          year: "numeric",
-                          month: "short",
-                          day: "numeric",
-                        })}
-                      </span>
-                    </div>
+            <span className="block text-[clamp(3.4rem,9vw,8rem)]">{first}</span>
+          )}
+        </h1>
+        {archetype && (
+          <p className="mt-4 max-w-xl text-[0.95rem] text-muted-foreground">
+            <span className="font-display text-xl font-extrabold uppercase tracking-wide text-foreground">{archetype.name}</span>
+            <span className="mx-2 text-border">/</span>
+            <span className="font-serif text-lg italic">{archetype.line}</span>
+          </p>
+        )}
 
-                    <h4 className="font-semibold text-foreground text-sm flex items-center justify-between">
-                      <span>vs {m.match.opponent}</span>
-                      {m.match.scoreHome !== null && m.match.scoreAway !== null && (
-                        <span className="font-mono font-bold text-xs text-muted-foreground">
-                          {m.match.scoreHome} - {m.match.scoreAway}
-                        </span>
-                      )}
-                    </h4>
+        {keywords.signature.length > 0 && (
+          <div className="mt-5 flex flex-wrap gap-2">
+            {keywords.signature.slice(0, 7).map((k) => (
+              <KeywordChip key={k.id} keyword={k} />
+            ))}
+            {keywords.unlocked.length > 7 && (
+              <a href="#keywords" className="inline-flex h-8 items-center rounded-full border border-dashed px-3 font-mono text-[0.7rem] uppercase tracking-wider text-muted-foreground hover:text-foreground">
+                +{keywords.unlocked.length - 7} more
+              </a>
+            )}
+          </div>
+        )}
 
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {m.match.competition?.name || "Friendly / Exhibition"}
-                    </p>
-                  </div>
+        <div className="mt-8 grid grid-cols-2 gap-x-6 gap-y-6 border-t pt-6 sm:grid-cols-4">
+          <Stat label="Avg rating" value={fmtRating(profile.rating.avg)} tone="rating" size="lg" sub={`${profile.rating.rated} rated`} />
+          <Stat label="Goals" value={profile.goals} tone="goals" size="lg" sub={`${fmtNum(profile.perApp?.goals ?? null)} / app`} />
+          <Stat label="Assists" value={profile.assists} tone="assists" size="lg" sub={`${fmtNum(profile.perApp?.assists ?? null)} / app`} />
+          <Stat label="Man of the match" value={profile.motm} tone="motm" size="lg" sub={`${fmtPct(profile.perApp?.motm ?? null)} of games`} />
+        </div>
 
-                  <div className="mt-4 flex items-center justify-between border-t border-border/50 pt-3">
-                    <div className="text-xs font-mono space-x-2">
-                      <span className="font-bold text-primary">{m.goals} Goals</span>
-                      {m.assists > 0 && (
-                        <span className="text-sky-400">· {m.assists} Ast</span>
-                      )}
-                      {m.minutesPlayed !== null && (
-                        <span className="text-muted-foreground">· {m.minutesPlayed}&apos;</span>
-                      )}
-                    </div>
+        <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3">
+          <div className="flex items-center gap-2">
+            <span className="eyebrow">Last 5</span>
+            <RatingPill rating={profile.rating.last5} />
+            {trend !== null && (
+              <span className={cn("inline-flex items-center gap-0.5 font-mono text-xs", trend > 0.15 ? "text-win" : trend < -0.15 ? "text-loss" : "text-muted-foreground")}>
+                <TrendIcon className="h-3.5 w-3.5" /> {fmtSigned(trend)}
+              </span>
+            )}
+          </div>
+          {profile.streaks.scoring.current >= 2 && (
+            <span className="inline-flex items-center gap-1 font-mono text-xs uppercase tracking-wider text-goals">
+              <Flame className="h-3.5 w-3.5" /> Scored in {profile.streaks.scoring.current} straight
+            </span>
+          )}
+          {actions && <div className="ml-auto flex gap-2">{actions}</div>}
+        </div>
 
-                    <Link
-                      href={`/matches/${m.match.id}`}
-                      className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-                    >
-                      Match Details <ExternalLink className="h-3 w-3" />
-                    </Link>
+        {ranks.some((r) => r.rank !== null) && insight.squadSize > 1 && (
+          <div className="mt-8">
+            <div className="eyebrow mb-3">Squad rank · of {insight.squadSize}</div>
+            <div className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0">
+              {ranks.filter((r) => r.rank !== null).map((r) => (
+                <div key={r.metric} className={cn("panel shrink-0 px-3 py-2", r.rank === 1 && "border-motm/40")}>
+                  <div className="eyebrow !text-[0.6rem]">{r.label}</div>
+                  <div className="mt-0.5 flex items-baseline gap-1">
+                    <span className={cn("numeral text-2xl", r.rank === 1 && "text-motm")}>#{r.rank}</span>
+                    <span className="font-mono text-[0.65rem] text-muted-foreground">top {100 - (r.percentile ?? 0) || 1}%</span>
                   </div>
                 </div>
               ))}
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
 
-      {/* Match History Table */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <CardTitle className="font-display text-lg">Match History</CardTitle>
-              <CardDescription className="text-xs">
-                Comprehensive log of all fixtures, appearance statuses, and individual contributions.
-              </CardDescription>
-            </div>
+// ---------------------------------------------------------------------------
+// Overview
+// ---------------------------------------------------------------------------
 
-            {/* Opponent Search */}
-            <div className="relative w-full sm:w-64">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Filter by opponent..."
-                value={matchSearch}
-                onChange={(e) => {
-                  setMatchSearch(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="pl-8 text-xs h-9"
-              />
+function Overview({ insight }: { insight: P }) {
+  const { profile: p, attrs } = insight;
+  const maxBucket = Math.max(1, ...p.rating.distribution.map((b) => b.count));
+
+  const streaks: { label: string; s: { current: number; best: number }; tone: string }[] = [
+    { label: "Scoring", s: p.streaks.scoring, tone: "goals" },
+    { label: "Assisting", s: p.streaks.assisting, tone: "assists" },
+    { label: "G+A", s: p.streaks.contributing, tone: "primary" },
+    { label: "MOTM", s: p.streaks.motm, tone: "motm" },
+    { label: "7.0+ rated", s: p.streaks.rating7, tone: "win" },
+    { label: "8.0+ rated", s: p.streaks.rating8, tone: "rating" },
+    { label: "Unbeaten", s: p.streaks.unbeaten, tone: "win" },
+    { label: "Winning", s: p.streaks.winning, tone: "win" },
+    { label: "Blank (no G/A)", s: p.streaks.blank, tone: "loss" },
+  ];
+
+  return (
+    <div className="space-y-14">
+      {/* Output strip */}
+      <section className="grid grid-cols-2 gap-px overflow-hidden rounded-[var(--radius)] border bg-border sm:grid-cols-4 lg:grid-cols-8">
+        {[
+          { l: "Apps", v: p.apps, s: `${p.starts} starts · ${p.subApps} sub` },
+          { l: "Minutes", v: p.minutes?.toLocaleString("en") ?? dash, s: p.minutesPerGA ? `${p.minutesPerGA}′ per G/A` : "—" },
+          { l: "G+A", v: p.ga, s: `${fmtNum(p.perApp?.ga ?? null)} per app` },
+          { l: "Per 90", v: fmtNum(p.per90?.ga ?? null), s: p.per90 ? `${p.per90.goals}G · ${p.per90.assists}A` : "needs minutes" },
+          { l: "Record", v: `${p.record.wins}-${p.record.draws}-${p.record.losses}`, s: `${fmtPct(p.record.winRate)} win rate` },
+          { l: "Points / game", v: fmtNum(p.record.ppg), s: `${p.record.known} scored games` },
+          { l: "Team goals", v: fmtPct(p.teamShare.involvement), s: "involved in" },
+          { l: "Best rating", v: fmtRating(p.rating.best), s: `worst ${fmtRating(p.rating.worst)}` },
+        ].map((x) => (
+          <div key={x.l} className="bg-card p-4">
+            <Stat label={x.l} value={x.v} sub={x.s} size="sm" />
+          </div>
+        ))}
+      </section>
+
+      {/* Rating chart */}
+      <section>
+        <SectionHeading index="A" title="Rating log" note="every match, with the 5-game line" />
+        <div className="panel p-4 sm:p-6">
+          <RatingChart timeline={p.timeline} average={p.rating.avg} />
+          <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 border-t pt-4 font-mono text-[0.7rem] uppercase tracking-wider text-muted-foreground">
+            <span>Median <b className="text-foreground">{fmtRating(p.rating.median)}</b></span>
+            <span>Spread ±<b className="text-foreground">{fmtNum(p.rating.stdDev)}</b></span>
+            <span>Trend <b className={cn((p.rating.trend ?? 0) > 0 ? "text-win" : (p.rating.trend ?? 0) < 0 ? "text-loss" : "text-foreground")}>{fmtSigned(p.rating.trend, 3)}</b>/game</span>
+            <span>7.0+ in <b className="text-foreground">{fmtPct(p.rating.sevenPlusPct)}</b></span>
+            <span>Last 10 <b className="text-foreground">{fmtRating(p.rating.last10)}</b></span>
+          </div>
+        </div>
+      </section>
+
+      <div className="grid gap-10 lg:grid-cols-[1.1fr_1fr]">
+        {/* Attributes */}
+        <section>
+          <SectionHeading index="B" title="Attributes" note="how the card is built" />
+          <div className="panel grid gap-6 p-5 sm:grid-cols-[1fr_1fr] sm:p-6">
+            {attrs && <Radar series={[{ label: "Attributes", values: attrs, colorVar: "--primary" }]} size={300} />}
+            <ul className="space-y-4 self-center">
+              {ATTRIBUTE_KEYS.map((k) => (
+                <li key={k}>
+                  <div className="flex items-baseline justify-between">
+                    <span className="font-display text-lg font-extrabold uppercase tracking-wide">
+                      {k} <span className="font-body text-xs font-normal normal-case tracking-normal text-muted-foreground">{ATTRIBUTE_META[k].name}</span>
+                    </span>
+                    <span className="numeral text-2xl">{attrs?.[k] ?? dash}</span>
+                  </div>
+                  <Meter value={attrs?.[k] ?? 0} max={99} tone={(attrs?.[k] ?? 0) >= 80 ? "motm" : (attrs?.[k] ?? 0) >= 65 ? "primary" : "muted-foreground"} className="mt-1.5" />
+                  <p className="mt-1 text-[0.72rem] text-muted-foreground">{ATTRIBUTE_META[k].blurb}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        {/* Form + distribution */}
+        <section className="space-y-10">
+          <div>
+            <SectionHeading index="C" title="Form guide" note="last ten, newest first" />
+            <div className="panel scrollbar-none overflow-x-auto p-4">
+              <FormStrip items={p.form} />
             </div>
           </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {filteredMatches.length === 0 ? (
-            <div className="p-8 text-center text-sm text-muted-foreground">
-              {matchSearch
-                ? `No match records match "${matchSearch}".`
-                : "No match appearances recorded for this player yet."}
+          <div>
+            <SectionHeading index="D" title="Rating spread" />
+            <div className="panel flex h-48 items-end gap-2 p-5">
+              {p.rating.distribution.map((b) => (
+                <div key={b.label} className="flex h-full flex-1 flex-col items-center justify-end gap-1.5">
+                  <span className="font-mono text-[0.65rem] text-muted-foreground">{b.count || ""}</span>
+                  <div
+                    className="w-full rounded-t-md"
+                    style={{ height: `${(b.count / maxBucket) * 100}%`, minHeight: b.count ? 4 : 1, backgroundColor: `hsl(var(${ratingVar(b.min === 0 ? 4 : b.min)}) / ${b.count ? 0.8 : 0.15})` }}
+                  />
+                  <span className="font-display text-sm font-extrabold">{b.label}</span>
+                </div>
+              ))}
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Competition</TableHead>
-                    <TableHead>Opponent</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Minutes</TableHead>
-                    <TableHead className="text-right">Goals</TableHead>
-                    <TableHead className="text-right">Assists</TableHead>
-                    <TableHead className="text-right">G+A</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedMatches.map((perf) => (
-                    <TableRow key={perf.performanceId} className="hover:bg-secondary/40">
-                      <TableCell className="font-mono text-xs whitespace-nowrap">
-                        {new Date(perf.match.date).toLocaleDateString("en-US", {
-                          year: "numeric",
-                          month: "short",
-                          day: "numeric",
-                        })}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground max-w-[140px] truncate">
-                        {perf.match.competition?.name ?? "Friendly / Exhibition"}
-                      </TableCell>
-                      <TableCell className="font-medium text-foreground text-sm">
-                        <div className="flex items-center gap-1.5">
-                          <span>{perf.match.opponent}</span>
-                          {perf.match.scoreHome !== null && perf.match.scoreAway !== null && (
-                            <span className="font-mono text-xs text-muted-foreground font-normal">
-                              ({perf.match.scoreHome}-{perf.match.scoreAway})
-                            </span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            perf.appearanceStatus === "STARTED"
-                              ? "default"
-                              : perf.appearanceStatus === "SUBSTITUTE_USED"
-                              ? "secondary"
-                              : "outline"
-                          }
-                          className="text-[10px] font-mono"
-                        >
-                          {perf.appearanceStatus.replace(/_/g, " ")}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-mono tabular-nums text-xs">
-                        {perf.minutesPlayed !== null ? `${perf.minutesPlayed}'` : "—"}
-                      </TableCell>
-                      <TableCell className="text-right font-mono font-bold tabular-nums text-primary text-sm">
-                        {perf.goals}
-                      </TableCell>
-                      <TableCell className="text-right font-mono font-bold tabular-nums text-sky-400 text-sm">
-                        {perf.assists}
-                      </TableCell>
-                      <TableCell className="text-right font-mono font-bold tabular-nums text-purple-400 text-sm">
-                        {perf.goals + perf.assists}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Link
-                          href={`/matches/${perf.match.id}`}
-                          className="text-xs font-mono text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
-                        >
-                          View <ChevronRight className="h-3 w-3" />
-                        </Link>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
+          </div>
+        </section>
+      </div>
 
-          {/* Pagination Controls */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between border-t border-border px-4 py-3">
-              <span className="text-xs font-mono text-muted-foreground">
-                Page {currentPage} of {totalPages} ({filteredMatches.length} matches)
-              </span>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage <= 1}
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  className="h-8 gap-1 text-xs"
-                >
-                  <ChevronLeft className="h-3.5 w-3.5" /> Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage >= totalPages}
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  className="h-8 gap-1 text-xs"
-                >
-                  Next <ChevronRight className="h-3.5 w-3.5" />
-                </Button>
+      {/* Streaks */}
+      <section>
+        <SectionHeading index="E" title="Streaks" note="current run vs best ever" />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-9">
+          {streaks.map(({ label, s, tone }) => (
+            <div key={label} className={cn("panel p-4", s.current > 0 && s.current === s.best && s.best >= 2 && "border-foreground/30")}>
+              <div className="eyebrow truncate">{label}</div>
+              <div className="mt-2 flex items-baseline gap-1.5">
+                <span className="numeral text-4xl" style={{ color: s.current ? `hsl(var(--${tone}))` : undefined }}>{s.current}</span>
+                <span className="font-mono text-[0.65rem] text-muted-foreground">now</span>
+              </div>
+              <div className="mt-1 font-mono text-[0.68rem] text-muted-foreground">best {s.best}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Milestones + next keywords */}
+      <div className="grid gap-10 lg:grid-cols-2">
+        <section>
+          <SectionHeading index="F" title="Next milestones" />
+          <div className="panel divide-y">
+            {p.milestones.map((m) => (
+              <div key={m.metric} className="flex items-center gap-4 p-4">
+                <div className="w-36 shrink-0">
+                  <div className="eyebrow">{m.label}</div>
+                  <div className="mt-1 font-display text-2xl font-extrabold tabular-nums">
+                    {m.current} <span className="text-muted-foreground">/ {m.target}</span>
+                  </div>
+                </div>
+                <Meter value={m.current} max={m.target} tone={m.metric === "goals" ? "goals" : m.metric === "assists" ? "assists" : m.metric === "motm" ? "motm" : "primary"} />
+                <span className="w-14 shrink-0 text-right font-mono text-xs text-muted-foreground">{m.remaining} to go</span>
+              </div>
+            ))}
+          </div>
+        </section>
+        <section>
+          <SectionHeading index="G" title="Almost unlocked" note="keywords within reach" />
+          <NextUnlocks insight={insight} />
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function NextUnlocks({ insight }: { insight: P }) {
+  const next = insight.keywords.next.slice(0, 6);
+  if (next.length === 0) return <p className="font-serif text-lg italic text-muted-foreground">Nothing close — every nearby ladder is already climbed.</p>;
+  return (
+    <div className="panel divide-y">
+      {next.map((n) => (
+        <div key={n.keyword.id} className="p-4">
+          <div className="flex items-center justify-between gap-3">
+            <KeywordChip keyword={n.keyword} size="sm" locked />
+            <span className="font-mono text-xs text-muted-foreground">
+              {fmtNum(n.value)} / {n.target}
+            </span>
+          </div>
+          <div className="mt-2 flex items-center gap-3">
+            <Meter value={n.pct} max={1} tone={`r-${n.keyword.rarity}`} />
+            <span className="w-10 shrink-0 text-right font-mono text-xs">{Math.round(n.pct * 100)}%</span>
+          </div>
+          <p className="mt-1.5 text-xs text-muted-foreground">{n.keyword.description}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Matches
+// ---------------------------------------------------------------------------
+
+function Matches({ timeline }: { timeline: TimelinePoint[] }) {
+  const rows = [...timeline].reverse();
+  return (
+    <div className="panel overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[46rem] text-sm">
+          <thead>
+            <tr className="border-b text-left">
+              {["Date", "Opponent", "Result", "Competition", "Role", "G", "A", "Rating", ""].map((h) => (
+                <th key={h} className="eyebrow px-4 py-3 font-medium">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((t) => (
+              <tr key={t.matchId} className={cn("border-b last:border-0 transition-colors hover:bg-elevated/50", t.motm && "bg-motm/[0.05]")}>
+                <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-muted-foreground">{fmtDate(t.date, { day: "2-digit", month: "short", year: "2-digit" })}</td>
+                <td className="px-4 py-3">
+                  <Link href={`/matches/${t.matchId}`} className="font-semibold hover:text-primary">
+                    <span className="mr-1.5 font-mono text-[0.65rem] text-muted-foreground">{t.venue === "AWAY" ? "@" : t.venue === "NEUTRAL" ? "N" : "vs"}</span>
+                    {t.opponent}
+                  </Link>
+                </td>
+                <td className="whitespace-nowrap px-4 py-3">
+                  <span className="inline-flex items-center gap-2">
+                    <ResultBadge result={t.result} />
+                    {t.goalsFor !== null && <span className="font-display text-lg font-extrabold tabular-nums">{t.goalsFor}–{t.goalsAgainst}</span>}
+                  </span>
+                </td>
+                <td className="max-w-[10rem] truncate px-4 py-3 text-xs text-muted-foreground">{t.competitionName ?? "Friendly"}</td>
+                <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-muted-foreground">
+                  {t.started ? "XI" : "SUB"}
+                  {t.minutes !== null && ` · ${t.minutes}′`}
+                </td>
+                <td className={cn("px-4 py-3 font-display text-lg font-extrabold tabular-nums", t.goals ? "text-goals" : "text-muted-foreground/40")}>{t.goals}</td>
+                <td className={cn("px-4 py-3 font-display text-lg font-extrabold tabular-nums", t.assists ? "text-assists" : "text-muted-foreground/40")}>{t.assists}</td>
+                <td className="px-4 py-3"><RatingPill rating={t.rating} size="sm" /></td>
+                <td className="px-4 py-3">{t.motm && <Star className="h-4 w-4 fill-motm text-motm" aria-label="Man of the match" />}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Splits
+// ---------------------------------------------------------------------------
+
+function SplitTable({ title, rows, note, limit }: { title: string; rows: SplitLine[]; note?: string; limit?: number }) {
+  if (rows.length === 0) return null;
+  const shown = limit ? rows.slice(0, limit) : rows;
+  const maxApps = Math.max(...rows.map((r) => r.apps));
+  return (
+    <section>
+      <SectionHeading title={title} note={note} />
+      <div className="panel overflow-x-auto">
+        <table className="w-full min-w-[34rem] text-sm">
+          <thead>
+            <tr className="border-b text-left">
+              {["", "Apps", "G", "A", "MOTM", "Avg", "W-D-L"].map((h) => (
+                <th key={h} className="eyebrow px-4 py-2.5 font-medium">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((r) => (
+              <tr key={r.key} className="border-b last:border-0">
+                <td className="relative px-4 py-2.5 font-semibold">
+                  <span className="absolute inset-y-1 left-0 rounded-r bg-primary/10" style={{ width: `${(r.apps / maxApps) * 100}%` }} />
+                  <span className="relative">{r.label}</span>
+                </td>
+                <td className="px-4 py-2.5 font-mono tabular-nums">{r.apps}</td>
+                <td className="px-4 py-2.5 font-mono tabular-nums text-goals">{r.goals}</td>
+                <td className="px-4 py-2.5 font-mono tabular-nums text-assists">{r.assists}</td>
+                <td className="px-4 py-2.5 font-mono tabular-nums text-motm">{r.motm || ""}</td>
+                <td className="px-4 py-2.5"><RatingPill rating={r.avgRating} size="sm" /></td>
+                <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">
+                  <span className="text-win">{r.wins}</span>-<span className="text-draw">{r.draws}</span>-<span className="text-loss">{r.losses}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function Splits({ insight }: { insight: P }) {
+  const p = insight.profile;
+  const byApps = (rows: SplitLine[]) => [...rows].sort((a, b) => b.apps - a.apps || b.goals - a.goals);
+  const results: ("W" | "D" | "L")[] = ["W", "D", "L"];
+  const resultCount = { W: p.record.wins, D: p.record.draws, L: p.record.losses };
+  return (
+    <div className="space-y-12">
+      <section>
+        <SectionHeading title="By result" note="how they play when the team wins, draws, loses" />
+        <div className="grid gap-3 sm:grid-cols-3">
+          {results.map((r) => (
+            <div key={r} className="panel flex items-center gap-4 p-5">
+              <ResultBadge result={r} className="h-12 w-12 text-2xl" />
+              <div className="grid flex-1 grid-cols-3 gap-2">
+                <Stat label="Games" value={resultCount[r]} size="sm" />
+                <Stat label="Goals" value={p.record.goalsByResult[r]} size="sm" tone="goals" />
+                <Stat label="Avg" value={fmtRating(p.record.ratingByResult[r])} size="sm" tone="rating" />
               </div>
             </div>
+          ))}
+        </div>
+      </section>
+      <div className="grid gap-12 lg:grid-cols-2">
+        <SplitTable title="Home & away" rows={p.splits.venue} />
+        <SplitTable title="Starter vs sub" rows={p.splits.role} />
+        <SplitTable title="Competitions" rows={byApps(p.splits.competition)} />
+        <SplitTable title="Seasons" rows={[...p.splits.season].sort((a, b) => b.key.localeCompare(a.key))} />
+        <SplitTable title="Opponents" rows={byApps(p.splits.opponent)} note="most-faced first" limit={12} />
+        <SplitTable title="Day of week" rows={p.splits.weekday} />
+      </div>
+      <SplitTable title="Month by month" rows={[...p.splits.month].sort((a, b) => b.key.localeCompare(a.key))} />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Keywords
+// ---------------------------------------------------------------------------
+
+function Keywords({ insight }: { insight: P }) {
+  const { keywords } = insight;
+  const byFamily = new Map<Family, Keyword[]>();
+  for (const k of keywords.unlocked) {
+    const list = byFamily.get(k.family) ?? [];
+    list.push(k);
+    byFamily.set(k.family, list);
+  }
+  const families = [...byFamily.entries()].sort((a, b) => Math.max(...b[1].map((k) => rarityRank(k.rarity))) - Math.max(...a[1].map((k) => rarityRank(k.rarity))) || b[1].length - a[1].length);
+  const fixed = keywords.unlocked.filter((k) => !k.dynamic).length;
+
+  return (
+    <div className="space-y-12">
+      <section className="grid gap-3 sm:grid-cols-[1.4fr_repeat(5,1fr)]">
+        <div className="panel stripe-bg p-5">
+          <div className="eyebrow">Unlocked</div>
+          <div className="numeral mt-1 text-6xl">{keywords.unlocked.length}</div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            {fixed} of {KEYWORD_CATALOGUE.length} codex keywords · {keywords.unlocked.length - fixed} unique honours
+          </div>
+        </div>
+        {RARITIES.map((r) => (
+          <div key={r} className="panel p-5" style={{ borderColor: `hsl(var(--r-${r}) / 0.35)` }}>
+            <div className="eyebrow flex items-center gap-1.5"><RarityDot rarity={r} /> {RARITY_LABEL[r]}</div>
+            <div className={cn("numeral mt-2 text-5xl", r === "mythic" && keywords.counts[r] > 0 && "mythic-text")} style={r !== "mythic" ? { color: `hsl(var(--r-${r}))` } : undefined}>
+              {keywords.counts[r]}
+            </div>
+          </div>
+        ))}
+      </section>
+
+      <section>
+        <SectionHeading title="Within reach" note="the next rungs on each ladder" action={<Link href="/keywords" className="eyebrow hover:text-foreground">Full codex →</Link>} />
+        <NextUnlocks insight={insight} />
+      </section>
+
+      {families.map(([fam, list]) => (
+        <section key={fam}>
+          <SectionHeading title={FAMILY_LABELS[fam]} note={`${list.length} earned`} />
+          <div className="flex flex-wrap gap-2">
+            {[...list].sort((a, b) => rarityRank(b.rarity) - rarityRank(a.rarity)).map((k) => (
+              <KeywordChip key={k.id} keyword={k} />
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Records
+// ---------------------------------------------------------------------------
+
+function PerformanceCard({ t, rank }: { t: TimelinePoint; rank?: number }) {
+  return (
+    <Link href={`/matches/${t.matchId}`} className="panel panel-hover group flex flex-col p-5">
+      <div className="flex items-start justify-between">
+        <span className="font-mono text-xs text-primary">{rank ? `#${rank}` : ""}</span>
+        <RatingPill rating={t.rating} size="lg" />
+      </div>
+      <div className="mt-4 font-display text-2xl font-extrabold uppercase leading-none">
+        {t.venue === "AWAY" ? "@ " : "vs "}
+        {t.opponent}
+      </div>
+      <div className="mt-1 font-mono text-xs text-muted-foreground">
+        {fmtDate(t.date)} {t.goalsFor !== null && `· ${t.goalsFor}–${t.goalsAgainst}`}
+      </div>
+      <div className="mt-auto flex gap-4 pt-4 font-display text-xl font-extrabold">
+        <span className={t.goals ? "text-goals" : "text-muted-foreground/40"}>{t.goals}G</span>
+        <span className={t.assists ? "text-assists" : "text-muted-foreground/40"}>{t.assists}A</span>
+        {t.motm && <span className="text-motm">★</span>}
+        <span className="ml-auto font-mono text-xs font-normal text-muted-foreground">score {t.matchScore}</span>
+      </div>
+    </Link>
+  );
+}
+
+function Records({ insight }: { insight: P }) {
+  const p = insight.profile;
+  const firsts: [string, TimelinePoint | null][] = [
+    ["Debut", p.firsts.debut],
+    ["First goal", p.firsts.firstGoal],
+    ["First assist", p.firsts.firstAssist],
+    ["First MOTM", p.firsts.firstMotm],
+    ["Latest", p.firsts.latest],
+  ];
+  const hauls = [
+    { l: "1 goal", v: p.hauls.goals.one, t: "goals" },
+    { l: "Braces", v: p.hauls.goals.two, t: "goals" },
+    { l: "Hat-tricks", v: p.hauls.goals.three, t: "goals" },
+    { l: "4 goals", v: p.hauls.goals.four, t: "goals" },
+    { l: "5+ goals", v: p.hauls.goals.fivePlus, t: "goals" },
+    { l: "1 assist", v: p.hauls.assists.one, t: "assists" },
+    { l: "2 assists", v: p.hauls.assists.two, t: "assists" },
+    { l: "3 assists", v: p.hauls.assists.three, t: "assists" },
+    { l: "4+ assists", v: p.hauls.assists.fourPlus, t: "assists" },
+    { l: "Goal + assist", v: p.hauls.fullPackage, t: "primary" },
+    { l: "3+ G/A", v: p.hauls.gaHauls, t: "primary" },
+    { l: "Blanks", v: p.hauls.blanks, t: "muted-foreground" },
+  ];
+  return (
+    <div className="space-y-12">
+      <section>
+        <SectionHeading title="Greatest hits" note="ranked by match score: rating, goals, assists, MOTM" />
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          {p.bestPerformances.map((t, i) => (
+            <PerformanceCard key={t.matchId} t={t} rank={i + 1} />
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <SectionHeading title="Hauls" note="matches by exact output" />
+        <div className="grid grid-cols-3 gap-px overflow-hidden rounded-[var(--radius)] border bg-border sm:grid-cols-6">
+          {hauls.map((h) => (
+            <div key={h.l} className="bg-card p-4">
+              <div className="eyebrow">{h.l}</div>
+              <div className="numeral mt-1.5 text-4xl" style={{ color: h.v ? `hsl(var(--${h.t}))` : undefined }}>{h.v}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <div className="grid gap-10 lg:grid-cols-2">
+        <section>
+          <SectionHeading title="Personal bests" />
+          <div className="panel grid grid-cols-2 gap-6 p-5 sm:grid-cols-3">
+            <Stat label="Goals in a match" value={p.bests.matchGoals} tone="goals" size="sm" />
+            <Stat label="Assists in a match" value={p.bests.matchAssists} tone="assists" size="sm" />
+            <Stat label="G+A in a match" value={p.bests.matchGA} tone="primary" size="sm" />
+            <Stat label="Goals in a season" value={p.bests.seasonGoals} tone="goals" size="sm" />
+            <Stat label="Assists in a season" value={p.bests.seasonAssists} tone="assists" size="sm" />
+            <Stat label="MOTM in a season" value={p.bests.seasonMotm} tone="motm" size="sm" />
+            <Stat label="Goals in a month" value={p.bests.monthGoals} size="sm" />
+            <Stat label="One-goal winners" value={p.record.matchWinners} size="sm" sub="scored in 1-goal wins" />
+            <Stat label="Bounce-backs" value={p.bounceBacks} size="sm" sub="+2 rating on last game" />
+            <Stat label="Super-sub" value={`${p.superSub.goals}G ${p.superSub.assists}A`} size="sm" sub={`${p.superSub.motm} MOTM off the bench`} />
+            <Stat label="Silent 9s" value={p.silentMaestro} size="sm" sub="9+ without G/A" />
+            <Stat label="Opponents scored v" value={`${p.distinct.opponentsScoredAgainst}/${p.distinct.opponents}`} size="sm" />
+          </div>
+        </section>
+        <section>
+          <SectionHeading title="Firsts & lasts" />
+          <div className="panel divide-y">
+            {firsts.map(([label, t]) => (
+              <div key={label} className="flex items-center gap-4 p-4">
+                <span className="eyebrow w-24 shrink-0">{label}</span>
+                {t ? (
+                  <Link href={`/matches/${t.matchId}`} className="flex min-w-0 flex-1 items-center gap-3 hover:text-primary">
+                    <span className="truncate font-semibold">{t.venue === "AWAY" ? "@ " : "vs "}{t.opponent}</span>
+                    <span className="shrink-0 font-mono text-xs text-muted-foreground">{fmtDate(t.date)}</span>
+                    <RatingPill rating={t.rating} size="sm" className="ml-auto" />
+                  </Link>
+                ) : (
+                  <span className="text-sm text-muted-foreground">Not yet</span>
+                )}
+              </div>
+            ))}
+          </div>
+          {p.worstPerformance && p.worstPerformance.rating !== null && (
+            <p className="mt-4 text-xs text-muted-foreground">
+              Toughest day: {fmtRating(p.worstPerformance.rating)} vs {p.worstPerformance.opponent} on {fmtDate(p.worstPerformance.date)}.
+            </p>
           )}
-        </CardContent>
-      </Card>
-
-      {/* Edit Profile Modal Dialog */}
-      <PlayerFormDialog
-        open={isEditDialogOpen}
-        onOpenChange={setIsEditDialogOpen}
-        player={player}
-        onSuccess={() => {
-          setIsEditDialogOpen(false);
-          router.refresh();
-        }}
-      />
-
-      {/* Archive Confirmation Dialog */}
-      <ConfirmDialog
-        open={isArchiving}
-        onOpenChange={setIsArchiving}
-        title={`Archive ${player.fullName}?`}
-        description="Archiving this player preserves all match history and stats, but removes them from active squad selections."
-        confirmText="Archive Player"
-        isLoading={isLoading}
-        onConfirm={handleArchive}
-      />
-
-      {/* Restore Confirmation Dialog */}
-      <ConfirmDialog
-        open={isRestoring}
-        onOpenChange={setIsRestoring}
-        title={`Restore ${player.fullName}?`}
-        description="This will restore the player to active squad status."
-        confirmText="Restore Player"
-        isLoading={isLoading}
-        onConfirm={handleRestore}
-      />
-
-      {/* Hard Delete Dialog (Only allowed when 0 appearances) */}
-      <ConfirmDialog
-        open={isDeleting}
-        onOpenChange={setIsDeleting}
-        title={`Permanently Delete ${player.fullName}?`}
-        description="This player has zero recorded appearances. Are you sure you want to permanently delete this profile record?"
-        confirmText="Delete Permanently"
-        variant="destructive"
-        isLoading={isLoading}
-        onConfirm={handleDelete}
-      />
+        </section>
+      </div>
     </div>
   );
 }

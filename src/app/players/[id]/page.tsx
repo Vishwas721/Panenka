@@ -1,39 +1,25 @@
 import { notFound } from "next/navigation";
-import { getPlayerById } from "@/server/services/player.service";
-import { PlayerProfileView } from "@/components/players/player-profile-view";
 import type { Metadata } from "next";
+import { getPlayerInsight } from "@/server/services/insights.service";
+import { PlayerProfileView } from "@/components/players/player-profile-view";
 
-interface PlayerProfilePageProps {
-  params: Promise<{ id: string }> | { id: string };
+export const dynamic = "force-dynamic";
+
+interface Props {
+  params: { id: string };
 }
 
-export async function generateMetadata({
-  params,
-}: PlayerProfilePageProps): Promise<Metadata> {
-  const resolvedParams = await Promise.resolve(params);
-  const player = await getPlayerById(resolvedParams.id);
-  if (!player) {
-    return { title: "Player Not Found | Panenka" };
-  }
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const insight = await getPlayerInsight(params.id);
+  if (!insight) return { title: "Player not found" };
   return {
-    title: `${player.fullName} | Panenka`,
-    description: `Career statistics and match history for ${player.fullName}.`,
+    title: insight.player.fullName,
+    description: `${insight.player.fullName}: ${insight.ovr ?? "unrated"} overall, ${insight.profile.goals} goals, ${insight.profile.assists} assists, ${insight.profile.motm} MOTM.`,
   };
 }
 
-export default async function PlayerProfilePage({
-  params,
-}: PlayerProfilePageProps) {
-  const resolvedParams = await Promise.resolve(params);
-  const player = await getPlayerById(resolvedParams.id);
-
-  if (!player) {
-    notFound();
-  }
-
-  return (
-    <main className="container mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <PlayerProfileView player={player} />
-    </main>
-  );
+export default async function PlayerProfilePage({ params }: Props) {
+  const insight = await getPlayerInsight(params.id);
+  if (!insight) notFound();
+  return <PlayerProfileView insight={insight} />;
 }
