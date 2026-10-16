@@ -8,6 +8,7 @@ import {
   restorePlayer,
   deletePlayer,
 } from "@/server/services/player.service";
+import { z } from "zod";
 import {
   createPlayerSchema,
   updatePlayerSchema,
@@ -24,8 +25,10 @@ export type ActionResult<T = unknown> =
  * Server action to create a new player.
  * Validates with Zod schema and enforces team-scoped duplicate name check.
  */
+export type CreatePlayerFormInput = z.input<typeof createPlayerSchema>;
+
 export async function createPlayerAction(
-  input: CreatePlayerInput
+  input: CreatePlayerFormInput
 ): Promise<ActionResult<Player>> {
   try {
     const parseResult = createPlayerSchema.safeParse(input);

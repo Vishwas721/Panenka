@@ -72,7 +72,9 @@ export async function createMatchAction(rawInput: unknown) {
     revalidateMatchRoutes();
     return { success: true, data: match };
   } catch (error: any) {
-    console.error("createMatchAction error:", error);
+    if (!error?.issues) {
+      console.error("createMatchAction error:", error);
+    }
     const message =
       error?.issues?.[0]?.message || error?.message || "Failed to create match";
     return { success: false, error: message };
@@ -87,7 +89,9 @@ export async function updateMatchAction(id: string, rawInput: unknown) {
     revalidateMatchRoutes();
     return { success: true, data: match };
   } catch (error: any) {
-    console.error("updateMatchAction error:", error);
+    if (!error?.issues) {
+      console.error("updateMatchAction error:", error);
+    }
     const message =
       error?.issues?.[0]?.message || error?.message || "Failed to update match";
     return { success: false, error: message };

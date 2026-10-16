@@ -19,6 +19,7 @@ import type {
   Position,
   MatchStatus,
   MatchVenue,
+  AppearanceStatus,
   Prisma,
 } from "@prisma/client";
 
@@ -79,6 +80,17 @@ export interface DashboardSummary {
         name: string;
         season: string | null;
       } | null;
+      performances?: Array<{
+        id: string;
+        goals: number;
+        assists: number;
+        player: {
+          id: string;
+          fullName: string;
+          displayName: string | null;
+          position: Position;
+        };
+      }>;
     }>;
     recentPlayers: Array<{
       id: string;
@@ -90,6 +102,22 @@ export interface DashboardSummary {
       createdAt: Date;
     }>;
   };
+  chartPlayers: Array<{
+    id: string;
+    fullName: string;
+    displayName: string | null;
+    position: Position;
+    team: string | null;
+    imageUrl: string | null;
+    goals: number;
+    assists: number;
+    goalContributions: number;
+    appearances: number;
+    totalMinutes: number | null;
+    goalsPerAppearance: number | null;
+    assistsPerAppearance: number | null;
+    contributionsPerAppearance: number | null;
+  }>;
 }
 
 export interface HatTrickKing {
@@ -247,6 +275,27 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
               id: true,
               name: true,
               season: true,
+            },
+          },
+          performances: {
+            where: {
+              OR: [
+                { goals: { gt: 0 } },
+                { assists: { gt: 0 } },
+              ],
+            },
+            select: {
+              id: true,
+              goals: true,
+              assists: true,
+              player: {
+                select: {
+                  id: true,
+                  fullName: true,
+                  displayName: true,
+                  position: true,
+                },
+              },
             },
           },
         },
@@ -457,6 +506,28 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     }
   }
 
+  // Top players for main visualization chart (up to 15 rankable players)
+  const chartPlayers = rankPlayersBy(
+    (p) => p.stats.goalContributions,
+    (p) => p.stats.appearances > 0 || p.stats.goalContributions > 0,
+    15,
+  ).map((p) => ({
+    id: p.id,
+    fullName: p.fullName,
+    displayName: p.displayName,
+    position: p.position,
+    team: p.team,
+    imageUrl: p.imageUrl,
+    goals: p.stats.goals,
+    assists: p.stats.assists,
+    goalContributions: p.stats.goalContributions,
+    appearances: p.stats.appearances,
+    totalMinutes: p.totalMinutes,
+    goalsPerAppearance: p.stats.goalsPerAppearance,
+    assistsPerAppearance: p.stats.assistsPerAppearance,
+    contributionsPerAppearance: p.stats.contributionsPerAppearance,
+  }));
+
   return {
     totalPlayers: {
       registered,
@@ -478,6 +549,7 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
       recentMatches,
       recentPlayers,
     },
+    chartPlayers,
   };
 }
 
@@ -628,19 +700,16 @@ export async function getGoalAssistBreakdown(
       };
     })
     .sort((a, b) => {
-      if (b.totalMultiGoalMatches !== a.totalMultiGoalMatches) {
-        return b.totalMultiGoalMatches - a.totalMultiGoalMatches;
-      }
-      if (b.fiveOrMoreGoalMatches !== a.fiveOrMoreGoalMatches) {
-        return b.fiveOrMoreGoalMatches - a.fiveOrMoreGoalMatches;
-      }
-      if (b.fourGoalMatches !== a.fourGoalMatches) {
-        return b.fourGoalMatches - a.fourGoalMatches;
-      }
       if (b.hatTricks !== a.hatTricks) {
         return b.hatTricks - a.hatTricks;
       }
-      return b.goals - a.goals;
+      if (b.totalMultiGoalMatches !== a.totalMultiGoalMatches) {
+        return b.totalMultiGoalMatches - a.totalMultiGoalMatches;
+      }
+      if (b.goals !== a.goals) {
+        return b.goals - a.goals;
+      }
+      return b.appearances - a.appearances;
     });
 
   // 2. Brace Masters: Players with >= 1 brace
@@ -723,6 +792,10 @@ export async function getGoalAssistBreakdown(
     } else if (sortBy === "assistsPerAppearance") {
       result =
         (a.stats.assistsPerAppearance ?? 0) - (b.stats.assistsPerAppearance ?? 0);
+    } else if (sortBy === "contributionsPerAppearance") {
+      result =
+        (a.stats.contributionsPerAppearance ?? 0) -
+        (b.stats.contributionsPerAppearance ?? 0);
     } else if (sortBy === "singleGoalMatches") {
       result = a.goalBreakdown.singleGoalMatches - b.goalBreakdown.singleGoalMatches;
     } else if (sortBy === "braces") {
@@ -942,5 +1015,214 @@ export async function comparePlayers(
         values: assistsPerAppearanceValues,
       },
     },
+  };
+}
+
+export interface MilestoneMatchDetail {
+  id: string;
+  date: Date;
+  opponent: string;
+  team: string | null;
+  venue: MatchVenue | null;
+  venueName: string | null;
+  scoreHome: number | null;
+  scoreAway: number | null;
+  status: MatchStatus;
+  competition: {
+    id: string;
+    name: string;
+    season: string | null;
+  } | null;
+  performance: {
+    id: string;
+    appearanceStatus: AppearanceStatus;
+    minutesPlayed: number | null;
+    goals: number;
+    assists: number;
+    notes: string | null;
+  };
+}
+
+export interface PlayerMilestoneData {
+  player: {
+    id: string;
+    fullName: string;
+    displayName: string | null;
+    position: Position;
+    team: string | null;
+    imageUrl: string | null;
+    squadNumber: number | null;
+  };
+  milestoneKey: string;
+  milestoneTitle: string;
+  description: string;
+  matches: MilestoneMatchDetail[];
+}
+
+/**
+ * Fetches match details behind a player's milestone for drill-down inspection.
+ */
+export async function getPlayerMilestoneMatches(
+  playerId: string,
+  milestoneKey: string,
+  competitionId?: string,
+): Promise<PlayerMilestoneData | null> {
+  const player = await prisma.player.findUnique({
+    where: { id: playerId },
+    select: {
+      id: true,
+      fullName: true,
+      displayName: true,
+      position: true,
+      team: true,
+      imageUrl: true,
+      squadNumber: true,
+    },
+  });
+
+  if (!player) return null;
+
+  const performances = await prisma.playerMatchPerformance.findMany({
+    where: {
+      playerId,
+      match: {
+        status: "COMPLETED",
+        ...(competitionId ? { competitionId } : {}),
+      },
+    },
+    include: {
+      match: {
+        include: {
+          competition: {
+            select: {
+              id: true,
+              name: true,
+              season: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: [
+      { match: { date: "desc" } },
+      { createdAt: "desc" },
+    ],
+  });
+
+  const appearedPerfs = performances.filter((p) =>
+    didAppear(p.appearanceStatus),
+  );
+
+  let filtered = appearedPerfs;
+  let title = "Contributing Matches";
+  let description = "Matches recorded for this player";
+
+  switch (milestoneKey) {
+    case "hat_trick":
+    case "hatTricks":
+      filtered = appearedPerfs.filter((p) => p.goals === 3);
+      title = "Hat-tricks (3 Goals)";
+      description = "Matches where this player scored exactly 3 goals";
+      break;
+    case "brace":
+    case "braces":
+      filtered = appearedPerfs.filter((p) => p.goals === 2);
+      title = "Braces (2 Goals)";
+      description = "Matches where this player scored exactly 2 goals";
+      break;
+    case "single_goal":
+    case "singleGoalMatches":
+      filtered = appearedPerfs.filter((p) => p.goals === 1);
+      title = "Single-Goal Matches";
+      description = "Matches where this player scored exactly 1 goal";
+      break;
+    case "four_goal":
+    case "fourGoalMatches":
+      filtered = appearedPerfs.filter((p) => p.goals === 4);
+      title = "Four-Goal Performances";
+      description = "Matches where this player scored exactly 4 goals";
+      break;
+    case "five_plus_goal":
+    case "fiveOrMoreGoalMatches":
+      filtered = appearedPerfs.filter((p) => p.goals >= 5);
+      title = "Five+ Goal Performances";
+      description = "Matches where this player scored 5 or more goals";
+      break;
+    case "single_assist":
+    case "singleAssistMatches":
+      filtered = appearedPerfs.filter((p) => p.assists === 1);
+      title = "Single-Assist Matches";
+      description = "Matches where this player provided exactly 1 assist";
+      break;
+    case "two_assist":
+    case "twoAssistMatches":
+      filtered = appearedPerfs.filter((p) => p.assists === 2);
+      title = "Two-Assist Matches";
+      description = "Matches where this player provided exactly 2 assists";
+      break;
+    case "three_assist":
+    case "threeAssistMatches":
+      filtered = appearedPerfs.filter((p) => p.assists === 3);
+      title = "Three-Assist Matches";
+      description = "Matches where this player provided exactly 3 assists";
+      break;
+    case "four_plus_assist":
+    case "fourOrMoreAssistMatches":
+      filtered = appearedPerfs.filter((p) => p.assists >= 4);
+      title = "Four+ Assist Matches";
+      description = "Matches where this player provided 4 or more assists";
+      break;
+    case "goals":
+      filtered = appearedPerfs.filter((p) => p.goals > 0);
+      title = "All Scoring Matches";
+      description = "Matches where this player scored at least 1 goal";
+      break;
+    case "assists":
+      filtered = appearedPerfs.filter((p) => p.assists > 0);
+      title = "All Assisting Matches";
+      description = "Matches where this player provided at least 1 assist";
+      break;
+    case "goalContributions":
+    case "contributions":
+      filtered = appearedPerfs.filter((p) => p.goals > 0 || p.assists > 0);
+      title = "Goal Contributions (G+A)";
+      description = "Matches where this player scored or assisted";
+      break;
+    case "appearances":
+    case "all":
+    default:
+      filtered = appearedPerfs;
+      title = "All Match Appearances";
+      description = "Completed matches in which the player appeared";
+      break;
+  }
+
+  const matches: MilestoneMatchDetail[] = filtered.map((perf) => ({
+    id: perf.match.id,
+    date: perf.match.date,
+    opponent: perf.match.opponent,
+    team: perf.match.team,
+    venue: perf.match.venue,
+    venueName: perf.match.venueName,
+    scoreHome: perf.match.scoreHome,
+    scoreAway: perf.match.scoreAway,
+    status: perf.match.status,
+    competition: perf.match.competition,
+    performance: {
+      id: perf.id,
+      appearanceStatus: perf.appearanceStatus,
+      minutesPlayed: perf.minutesPlayed,
+      goals: perf.goals,
+      assists: perf.assists,
+      notes: perf.notes,
+    },
+  }));
+
+  return {
+    player,
+    milestoneKey,
+    milestoneTitle: title,
+    description,
+    matches,
   };
 }

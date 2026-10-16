@@ -470,3 +470,37 @@ export async function deletePlayer(id: string): Promise<Player> {
     where: { id },
   });
 }
+
+/**
+ * Returns distinct non-null team names across all players.
+ */
+export async function getPlayerTeams(): Promise<string[]> {
+  const records = await prisma.player.findMany({
+    where: { team: { not: null } },
+    select: { team: true },
+    distinct: ["team"],
+    orderBy: { team: "asc" },
+  });
+
+  return records
+    .map((r) => r.team)
+    .filter((t): t is string => Boolean(t && t.trim().length > 0));
+}
+
+
+/**
+ * Returns distinct non-null team names from players.
+ */
+export async function getDistinctTeams(): Promise<string[]> {
+  const distinctTeams = await prisma.player.findMany({
+    where: { team: { not: null } },
+    select: { team: true },
+    distinct: ["team"],
+    orderBy: { team: "asc" },
+  });
+
+  return distinctTeams
+    .map((p) => p.team)
+    .filter((t): t is string => Boolean(t && t.trim().length > 0));
+}
+
