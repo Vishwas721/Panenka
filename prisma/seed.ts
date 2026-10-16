@@ -452,7 +452,70 @@ async function main() {
     },
   ];
 
-  for (const m of matchesData) {
+  // Per-player baseline quality drives ratings so the demo squad has distinct identities.
+  const baseline: Record<string, number> = {
+    "Mateo Rossi": 7.2, "Luka Lindqvist": 7.3, "Kofi Mensah": 7.0, "Alexandre Silva": 6.8,
+    "Tariq Al-Mansoor": 6.6, "Dante Valenti": 6.9, "Marcus Brody": 6.7, "Kenji Sato": 6.5,
+    "Diego Morales": 6.6, "Samu Castrillo": 6.7, "Jonas Varga": 6.5, "Elias Novak": 6.8,
+    "Julian Brandtner": 6.3, "Viktor Petrov": 6.2, "Noah Sterling": 6.4,
+  };
+  const ratingFor = (name: string, goals: number, assists: number, started: boolean) => {
+    const noise = (rng() - 0.5) * 1.6;
+    const r = (baseline[name] ?? 6.5) + noise + goals * 0.75 + assists * 0.5 - (started ? 0 : 0.3);
+    return Math.round(Math.max(4.2, Math.min(10, r)) * 10) / 10;
+  };
+
+  // Procedurally extend the fixture list so streaks, splits and keywords have depth.
+  const opponents = [
+    "Harbour City", "Riverside Athletic", "Northgate United", "Kingsbridge Rovers", "Old Mill FC",
+    "Eastfield Town", "Westlake Wanderers", "Southport Albion", "Crown Park", "Ironworks FC",
+  ];
+  const attackers = ["Mateo Rossi", "Kofi Mensah", "Tariq Al-Mansoor", "Kenji Sato"];
+  const creators = ["Luka Lindqvist", "Alexandre Silva", "Kofi Mensah", "Elias Novak", "Mateo Rossi"];
+  const regulars = [
+    "Mateo Rossi", "Luka Lindqvist", "Kofi Mensah", "Alexandre Silva", "Tariq Al-Mansoor",
+    "Dante Valenti", "Marcus Brody", "Diego Morales", "Samu Castrillo", "Jonas Varga", "Elias Novak",
+  ];
+  const bench = ["Kenji Sato", "Julian Brandtner", "Viktor Petrov"];
+  const pick = <T,>(xs: T[]) => xs[Math.floor(rng() * xs.length)]!;
+  type SeedPerf = { name: string; status: AppearanceStatus; min?: number; goals?: number; assists?: number; notes?: string };
+  type SeedMatch = Omit<(typeof matchesData)[number], "performances" | "notes"> & { notes: string | null; performances: SeedPerf[] };
+  const generated: SeedMatch[] = [];
+  for (let i = 0; i < 24; i++) {
+    const date = new Date(Date.UTC(2025, 7, 9 + i * 7 + (i % 3 === 0 ? 3 : 0), 15));
+    const venue = i % 2 === 0 ? MatchVenue.HOME : MatchVenue.AWAY;
+    const ourGoals = Math.floor(rng() * 4.2);
+    const theirGoals = Math.floor(rng() * 2.8);
+    const tally: Record<string, { goals: number; assists: number }> = {};
+    for (let g = 0; g < ourGoals; g++) {
+      const scorer = rng() < 0.12 ? pick(regulars) : pick(attackers);
+      (tally[scorer] ??= { goals: 0, assists: 0 }).goals++;
+      if (rng() < 0.75) {
+        let creator = pick(creators);
+        if (creator === scorer) creator = scorer === "Luka Lindqvist" ? "Alexandre Silva" : "Luka Lindqvist";
+        (tally[creator] ??= { goals: 0, assists: 0 }).assists++;
+      }
+    }
+    const subs = bench.filter(() => rng() < 0.6);
+    generated.push({
+      date,
+      opponent: opponents[i % opponents.length]!,
+      team: "FC Panenka",
+      venue,
+      scoreHome: venue === MatchVenue.HOME ? ourGoals : theirGoals,
+      scoreAway: venue === MatchVenue.HOME ? theirGoals : ourGoals,
+      status: MatchStatus.COMPLETED,
+      competitionId: i % 4 === 3 ? championsCup.id : premierLeague.id,
+      notes: null,
+      performances: [
+        ...regulars.map((name) => ({ name, status: AppearanceStatus.STARTED, min: rng() < 0.25 ? 60 + Math.floor(rng() * 25) : 90, goals: tally[name]?.goals ?? 0, assists: tally[name]?.assists ?? 0 })),
+        ...subs.map((name) => ({ name, status: AppearanceStatus.SUBSTITUTE_USED, min: 10 + Math.floor(rng() * 25), goals: tally[name]?.goals ?? 0, assists: tally[name]?.assists ?? 0 })),
+      ],
+    });
+  }
+
+  const appeared = (st: AppearanceStatus) => st === AppearanceStatus.STARTED || st === AppearanceStatus.SUBSTITUTE_USED;
+  for (const m of [...(matchesData as SeedMatch[]), ...generated]) {
     const { performances, ...matchInfo } = m;
     const match = await prisma.match.create({
       data: {
@@ -461,7 +524,17 @@ async function main() {
       },
     });
 
-    for (const perf of performances) {
+    const rated = performances.map((perf) => ({
+      perf,
+      rating:
+        m.status === MatchStatus.COMPLETED && appeared(perf.status)
+          ? ratingFor(perf.name, perf.goals ?? 0, perf.assists ?? 0, perf.status === AppearanceStatus.STARTED)
+          : null,
+    }));
+    let best: (typeof rated)[number] | null = null;
+    for (const r of rated) if (r.rating !== null && (!best || r.rating > (best.rating ?? 0))) best = r;
+
+    for (const { perf, rating } of rated) {
       const playerId = createdPlayers[perf.name];
       if (!playerId) continue;
 
@@ -473,7 +546,9 @@ async function main() {
           minutesPlayed: perf.min ?? null,
           goals: perf.goals ?? 0,
           assists: perf.assists ?? 0,
-          notes: "notes" in perf ? ((perf as { notes?: string }).notes ?? null) : null,
+          rating,
+          isMotm: best !== null && best.perf === perf,
+          notes: perf.notes ?? null,
           isDemo: true,
         },
       });
