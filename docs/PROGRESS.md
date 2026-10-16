@@ -2,14 +2,14 @@
 
 ## Phase 1 — Foundation
 - [x] Preflight checks
-- [ ] Repository setup (gitignore, gitattributes, env, context files)
-- [ ] Project scaffold (Next.js, TypeScript strict, lint/format)
-- [ ] Docker Compose database
-- [ ] Prisma schema and migrations
-- [ ] Seed data
-- [ ] Shared statistics functions with unit tests
-- [ ] Service layer
-- [ ] Phase 1 verification
+- [x] Repository setup (gitignore, gitattributes, env, context files)
+- [x] Project scaffold (Next.js, TypeScript strict, lint/format)
+- [x] Docker Compose database (port 5434)
+- [x] Prisma schema and migrations
+- [x] Seed data (reproducible fictional demo dataset)
+- [x] Shared statistics functions with unit tests
+- [x] Service layer (player, match, stats, competition services)
+- [x] Phase 1 verification (all unit & integration tests passing, build green)
 
 ## Phase 2 — Core Application
 - [ ] Application shell, routing, brand config, base theme tokens
