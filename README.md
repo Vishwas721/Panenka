@@ -202,16 +202,21 @@ claude mcp add panenka -- pnpm mcp:start
 ```
 
 ### Google Antigravity Setup
-Add to `~/.gemini/antigravity/mcp/panenka.json`:
+Add the server entry to `~/.gemini/config/mcp_config.json` (or on Windows: `C:\Users\<username>\.gemini\config\mcp_config.json`):
 ```json
 {
-  "command": "npx",
-  "args": ["tsx", "C:/Panenka/mcp/server.ts"],
-  "env": {
-    "DATABASE_URL": "postgresql://postgres:postgres@127.0.0.1:5434/panenka?schema=public"
+  "mcpServers": {
+    "panenka": {
+      "command": "cmd",
+      "args": ["/c", "pnpm", "--dir", "C:/Panenka", "mcp:start"],
+      "env": {
+        "DATABASE_URL": "postgresql://postgres:postgres@127.0.0.1:5434/panenka?schema=public"
+      }
+    }
   }
 }
 ```
+Or manage it directly in the Antigravity UI under **Additional Options (...) > MCP Servers**.
 
 ---
 

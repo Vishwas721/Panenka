@@ -77,36 +77,24 @@ claude mcp add panenka pnpm mcp:start --cwd c:\Panenka
 
 ### B. Google Antigravity Configuration
 
-In Google Antigravity, configure the MCP server in your workspace or global MCP settings file (`~/.gemini/antigravity/mcpSettings.json` or `%USERPROFILE%\.gemini\antigravity\mcpSettings.json`):
+In Google Antigravity, configure the MCP server in your global MCP configuration file:
+`~/.gemini/config/mcp_config.json` (on Windows: `C:\Users\<username>\.gemini\config\mcp_config.json`):
 
 ```json
 {
   "mcpServers": {
     "panenka": {
-      "command": "pnpm",
-      "args": ["mcp:start"],
-      "cwd": "c:\\Panenka"
-    }
-  }
-}
-```
-
-If specifying custom environment variables:
-```json
-{
-  "mcpServers": {
-    "panenka": {
-      "command": "pnpm",
-      "args": ["mcp:start"],
-      "cwd": "c:\\Panenka",
+      "command": "cmd",
+      "args": ["/c", "pnpm", "--dir", "C:/Panenka", "mcp:start"],
       "env": {
-        "DATABASE_URL": "postgresql://postgres:postgres@localhost:5434/panenka?schema=public",
-        "MIN_APPEARANCES_FOR_RATE": "3"
+        "DATABASE_URL": "postgresql://postgres:postgres@127.0.0.1:5434/panenka?schema=public"
       }
     }
   }
 }
 ```
+
+You can also view and manage active MCP servers in the Antigravity interface by opening **Additional Options (...) > MCP Servers**.
 
 ---
 
