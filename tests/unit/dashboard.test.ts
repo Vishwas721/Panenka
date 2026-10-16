@@ -1,9 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { getDashboardSummary } from "@/server/services/stats.service";
-import { DashboardSummaryCards } from "@/components/dashboard/dashboard-summary-cards";
-import { LeaderboardCards } from "@/components/dashboard/leaderboard-cards";
-import { PlayerChart } from "@/components/dashboard/player-chart";
-import { RecentActivity } from "@/components/dashboard/recent-activity";
+import { getTeamOverview, getFixtures, getMatchReport } from "@/server/services/team.service";
+import { Scoreboard, ResultTiles } from "@/components/dashboard/scoreboard";
+import { LeaderBoards } from "@/components/dashboard/leaders";
+import { SquadTrendChart } from "@/components/dashboard/squad-trend-chart";
+import { RareKeywords, UnlockWatch } from "@/components/dashboard/squad-pulse";
 
 describe("Dashboard Page & Components", () => {
   it("getDashboardSummary returns all required dashboard metrics and structures", async () => {
@@ -50,17 +51,28 @@ describe("Dashboard Page & Components", () => {
     expect(summary.recentActivity.recentPlayers.length).toBeGreaterThan(0);
   });
 
+  it("getTeamOverview record adds up and is consistent with fixtures", async () => {
+    const [team, fixtures] = await Promise.all([getTeamOverview(), getFixtures()]);
+    expect(team.wins + team.draws + team.losses).toBe(team.scored);
+    expect(team.scored).toBeLessThanOrEqual(team.matches);
+    expect(team.last10.length).toBeLessThanOrEqual(10);
+    expect(fixtures.filter((f) => f.status === "COMPLETED").length).toBe(team.matches);
+    for (const f of fixtures) expect(f.motm === null || typeof f.motm.name === "string").toBe(true);
+  });
+
+  it("getMatchReport returns null for unknown ids and lines for real ones", async () => {
+    expect(await getMatchReport("does-not-exist")).toBeNull();
+    const [first] = await getFixtures();
+    if (first) {
+      const report = await getMatchReport(first.id);
+      expect(report?.id).toBe(first.id);
+      expect(report!.lines.filter((l) => l.motm).length).toBeLessThanOrEqual(1);
+    }
+  });
+
   it("exports all dashboard components as defined functions", () => {
-    expect(DashboardSummaryCards).toBeDefined();
-    expect(typeof DashboardSummaryCards).toBe("function");
-
-    expect(LeaderboardCards).toBeDefined();
-    expect(typeof LeaderboardCards).toBe("function");
-
-    expect(PlayerChart).toBeDefined();
-    expect(typeof PlayerChart).toBe("function");
-
-    expect(RecentActivity).toBeDefined();
-    expect(typeof RecentActivity).toBe("function");
+    for (const c of [Scoreboard, ResultTiles, LeaderBoards, SquadTrendChart, RareKeywords, UnlockWatch]) {
+      expect(typeof c).toBe("function");
+    }
   });
 });
