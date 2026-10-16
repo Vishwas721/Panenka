@@ -34,10 +34,10 @@
 - [x] Design consistency review with theme tokens and tabular numerals
 
 ## Phase 5 — MCP
-- [ ] Read-only role and tools
-- [ ] Inspector verification
-- [ ] Real client verification (Claude Code, Antigravity)
-- [ ] Client configuration documentation
+- [x] Read-only role and tools
+- [x] Inspector verification
+- [x] Real client verification (Claude Code, Antigravity)
+- [x] Client configuration documentation
 
 ## Phase 6 — Final Verification
 - [ ] Clean-clone verification

@@ -7,6 +7,7 @@ export default defineConfig({
     environment: "node",
     include: ["src/**/*.test.ts", "tests/**/*.test.ts", "mcp/**/*.test.ts"],
     exclude: ["node_modules", ".next", "tests/e2e/**"],
+    fileParallelism: false,
     coverage: {
       reporter: ["text", "json", "html"],
     },
