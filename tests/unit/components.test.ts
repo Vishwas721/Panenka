@@ -33,31 +33,17 @@ import {
 } from "@/components/ui/table";
 
 describe("Theme Management", () => {
-  it("provides touchline, matchday, champions themes", () => {
-    expect(PROVIDER_THEMES).toEqual(["touchline", "matchday", "champions"]);
+  it("provides floodlight and programme themes", () => {
+    expect(PROVIDER_THEMES).toEqual(["floodlight", "programme"]);
     expect(ThemeProvider).toBeDefined();
   });
 
-  it("theme switcher includes all 3 required themes with proper palettes", () => {
-    expect(THEMES).toHaveLength(3);
-
-    const touchline = THEMES.find((t) => t.id === "touchline");
-    expect(touchline).toBeDefined();
-    expect(touchline?.name).toBe("Touchline");
-    expect(touchline?.palette).toBe("Midnight navy & electric lime");
-    expect(touchline?.accentColor).toBe("#c8ff00");
-
-    const matchday = THEMES.find((t) => t.id === "matchday");
-    expect(matchday).toBeDefined();
-    expect(matchday?.name).toBe("Matchday");
-    expect(matchday?.palette).toBe("Warm ivory & forest pitch green");
-    expect(matchday?.accentColor).toBe("#206040");
-
-    const champions = THEMES.find((t) => t.id === "champions");
-    expect(champions).toBeDefined();
-    expect(champions?.name).toBe("Champions");
-    expect(champions?.palette).toBe("Deep black & metallic gold");
-    expect(champions?.accentColor).toBe("#e6ad19");
+  it("theme switcher metadata matches provider themes", () => {
+    expect(THEMES.map((t) => t.id)).toEqual(["floodlight", "programme"]);
+    for (const t of THEMES) {
+      expect(t.name.length).toBeGreaterThan(0);
+      expect(t.accentColor).toMatch(/^#[0-9a-f]{6}$/);
+    }
   });
 
   it("ThemeSwitcher component is defined", () => {

@@ -2,134 +2,113 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * PANENKA design tokens
+ *
+ * Two themes:
+ *   floodlight  — night match. Violet-black sky, chalk text, ember/tide/gold/orchid signal colours.
+ *   programme   — the printed matchday programme. Warm paper, ink, the same signals darkened.
+ * All values are HSL triplets consumed as hsl(var(--token) / <alpha>).
+ */
 @layer base {
-  /* ===== Touchline Theme (Default) ===== */
-  /* Deep midnight navy, electric lime accent, graphite surfaces */
   :root,
-  [data-theme="touchline"] {
-    --background: 222 47% 8%;
-    --foreground: 60 9% 93%;
+  [data-theme="floodlight"] {
+    color-scheme: dark;
+    --background: 252 24% 5%;
+    --foreground: 40 33% 92%;
+    --card: 251 20% 8%;
+    --card-foreground: 40 33% 92%;
+    --elevated: 250 18% 11.5%;
+    --popover: 250 20% 9.5%;
+    --popover-foreground: 40 33% 92%;
+    --primary: 12 100% 61%;
+    --primary-foreground: 252 30% 6%;
+    --secondary: 250 16% 13%;
+    --secondary-foreground: 40 25% 86%;
+    --muted: 250 16% 13%;
+    --muted-foreground: 248 10% 64%;
+    --accent: 250 16% 15%;
+    --accent-foreground: 40 33% 92%;
+    --destructive: 352 85% 60%;
+    --destructive-foreground: 252 30% 6%;
+    --border: 250 14% 17%;
+    --input: 250 14% 19%;
+    --ring: 12 100% 61%;
+    --radius: 0.9rem;
 
-    --card: 222 40% 11%;
-    --card-foreground: 60 9% 93%;
+    --goals: 12 100% 61%;
+    --assists: 171 72% 52%;
+    --motm: 43 97% 62%;
+    --rating: 263 92% 75%;
+    --contributions: 263 92% 75%;
 
-    --popover: 222 40% 11%;
-    --popover-foreground: 60 9% 93%;
+    --win: 145 63% 50%;
+    --draw: 40 12% 62%;
+    --loss: 352 85% 62%;
 
-    --primary: 78 100% 50%;
-    --primary-foreground: 222 47% 8%;
+    --success: 145 63% 50%;
+    --warning: 38 96% 58%;
+    --danger: 352 85% 60%;
 
-    --secondary: 222 30% 16%;
-    --secondary-foreground: 60 9% 85%;
+    --r-common: 240 8% 72%;
+    --r-rare: 196 90% 60%;
+    --r-epic: 275 88% 72%;
+    --r-legendary: 43 97% 60%;
+    --r-mythic: 340 95% 64%;
 
-    --muted: 222 30% 16%;
-    --muted-foreground: 222 15% 55%;
-
-    --accent: 78 100% 50%;
-    --accent-foreground: 222 47% 8%;
-
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 60 9% 93%;
-
-    --border: 222 25% 18%;
-    --input: 222 25% 18%;
-    --ring: 78 100% 50%;
-
-    --radius: 0.375rem;
-
-    /* Statistical category colors */
-    --goals: 78 100% 50%;
-    --assists: 199 89% 48%;
-    --contributions: 280 80% 60%;
-
-    /* Semantic colors */
-    --success: 142 71% 45%;
-    --warning: 38 92% 50%;
-    --danger: 0 72% 51%;
+    --glow-a: 12 100% 55%;
+    --glow-b: 263 80% 55%;
+    --grain-opacity: 0.07;
+    --pitch-line: 40 33% 92%;
   }
 
-  /* ===== Matchday Theme ===== */
-  /* Warm ivory, deep forest green, editorial aesthetic */
-  [data-theme="matchday"] {
-    --background: 40 33% 95%;
-    --foreground: 150 30% 10%;
+  [data-theme="programme"] {
+    color-scheme: light;
+    --background: 40 38% 93%;
+    --foreground: 252 30% 9%;
+    --card: 42 45% 96.5%;
+    --card-foreground: 252 30% 9%;
+    --elevated: 40 30% 89%;
+    --popover: 42 45% 97%;
+    --popover-foreground: 252 30% 9%;
+    --primary: 11 88% 42%;
+    --primary-foreground: 42 45% 97%;
+    --secondary: 40 26% 87%;
+    --secondary-foreground: 252 30% 12%;
+    --muted: 40 26% 87%;
+    --muted-foreground: 250 10% 36%;
+    --accent: 40 26% 85%;
+    --accent-foreground: 252 30% 9%;
+    --destructive: 352 75% 44%;
+    --destructive-foreground: 42 45% 97%;
+    --border: 38 18% 78%;
+    --input: 38 18% 74%;
+    --ring: 11 88% 42%;
 
-    --card: 40 30% 98%;
-    --card-foreground: 150 30% 10%;
+    --goals: 11 88% 42%;
+    --assists: 176 80% 26%;
+    --motm: 36 95% 36%;
+    --rating: 263 55% 46%;
+    --contributions: 263 55% 46%;
 
-    --popover: 40 30% 98%;
-    --popover-foreground: 150 30% 10%;
+    --win: 146 62% 30%;
+    --draw: 40 10% 42%;
+    --loss: 352 75% 44%;
 
-    --primary: 150 50% 25%;
-    --primary-foreground: 40 33% 95%;
+    --success: 146 62% 30%;
+    --warning: 32 92% 38%;
+    --danger: 352 75% 44%;
 
-    --secondary: 40 20% 90%;
-    --secondary-foreground: 150 30% 15%;
+    --r-common: 240 6% 42%;
+    --r-rare: 200 85% 36%;
+    --r-epic: 275 60% 46%;
+    --r-legendary: 36 95% 36%;
+    --r-mythic: 340 80% 44%;
 
-    --muted: 40 15% 88%;
-    --muted-foreground: 150 10% 40%;
-
-    --accent: 150 50% 25%;
-    --accent-foreground: 40 33% 95%;
-
-    --destructive: 0 65% 45%;
-    --destructive-foreground: 40 33% 95%;
-
-    --border: 40 15% 82%;
-    --input: 40 15% 82%;
-    --ring: 150 50% 25%;
-
-    /* Statistical category colors */
-    --goals: 150 50% 25%;
-    --assists: 210 60% 40%;
-    --contributions: 30 70% 45%;
-
-    /* Semantic colors */
-    --success: 142 60% 35%;
-    --warning: 38 85% 45%;
-    --danger: 0 65% 45%;
-  }
-
-  /* ===== Champions Theme ===== */
-  /* Deep black, metallic gold, charcoal surfaces */
-  [data-theme="champions"] {
-    --background: 0 0% 5%;
-    --foreground: 45 20% 90%;
-
-    --card: 0 0% 9%;
-    --card-foreground: 45 20% 90%;
-
-    --popover: 0 0% 9%;
-    --popover-foreground: 45 20% 90%;
-
-    --primary: 45 80% 50%;
-    --primary-foreground: 0 0% 5%;
-
-    --secondary: 0 0% 14%;
-    --secondary-foreground: 45 15% 75%;
-
-    --muted: 0 0% 14%;
-    --muted-foreground: 0 0% 45%;
-
-    --accent: 45 80% 50%;
-    --accent-foreground: 0 0% 5%;
-
-    --destructive: 0 70% 45%;
-    --destructive-foreground: 45 20% 90%;
-
-    --border: 0 0% 18%;
-    --input: 0 0% 18%;
-    --ring: 45 80% 50%;
-
-    /* Statistical category colors */
-    --goals: 45 80% 50%;
-    --assists: 200 70% 50%;
-    --contributions: 320 60% 55%;
-
-    /* Semantic colors */
-    --success: 142 65% 40%;
-    --warning: 38 90% 50%;
-    --danger: 0 70% 45%;
+    --glow-a: 11 90% 60%;
+    --glow-b: 263 60% 70%;
+    --grain-opacity: 0.11;
+    --pitch-line: 252 30% 9%;
   }
 }
 
@@ -138,17 +117,145 @@
     @apply border-border;
   }
 
-  body {
-    @apply bg-background text-foreground;
+  html {
+    -webkit-tap-highlight-color: transparent;
   }
 
-  /* Tabular numerals for all statistics */
+  body {
+    @apply bg-background text-foreground font-body;
+    background-image:
+      radial-gradient(60rem 40rem at -10% -15%, hsl(var(--glow-a) / 0.13), transparent 60%),
+      radial-gradient(55rem 38rem at 110% -10%, hsl(var(--glow-b) / 0.16), transparent 60%),
+      radial-gradient(40rem 30rem at 50% 120%, hsl(var(--glow-b) / 0.07), transparent 70%);
+    background-attachment: fixed;
+  }
+
+  /* Film grain over everything; pointer-events none so it never blocks input. */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 100;
+    opacity: var(--grain-opacity);
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.35);
+  }
+
   .tabular-nums {
     font-variant-numeric: tabular-nums;
   }
+
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
 }
 
-/* Respect reduced motion */
+@layer components {
+  /* Uppercase mono micro-label used for every stat caption. */
+  .eyebrow {
+    @apply font-mono text-[0.68rem] font-medium uppercase tracking-[0.18em] text-muted-foreground;
+  }
+
+  /* Big signage numerals. */
+  .numeral {
+    @apply font-display font-extrabold leading-[0.85] tabular-nums tracking-tight;
+  }
+
+  /* Glassy panel with a hairline top highlight — the base surface for everything. */
+  .panel {
+    @apply relative rounded-[var(--radius)] border bg-card/80 backdrop-blur-sm;
+    box-shadow:
+      inset 0 1px 0 0 hsl(var(--foreground) / 0.05),
+      0 20px 40px -24px hsl(0 0% 0% / 0.5);
+  }
+
+  .panel-hover {
+    @apply transition-[transform,border-color,box-shadow] duration-300;
+  }
+  .panel-hover:hover {
+    @apply -translate-y-0.5 border-foreground/20;
+  }
+
+  /* Faint pitch markings drawn as a background. */
+  .pitch-lines {
+    background-image:
+      radial-gradient(circle at 50% 50%, transparent 0 5.8rem, hsl(var(--pitch-line) / 0.07) 5.8rem 5.9rem, transparent 5.9rem),
+      linear-gradient(90deg, transparent calc(50% - 0.5px), hsl(var(--pitch-line) / 0.07) calc(50% - 0.5px) calc(50% + 0.5px), transparent calc(50% + 0.5px));
+  }
+
+  .stripe-bg {
+    background-image: repeating-linear-gradient(
+      -45deg,
+      hsl(var(--foreground) / 0.035) 0 1px,
+      transparent 1px 9px
+    );
+  }
+
+  .text-outline {
+    color: transparent;
+    -webkit-text-stroke: 1px hsl(var(--foreground) / 0.35);
+  }
+
+  .mythic-text {
+    background: linear-gradient(100deg, hsl(var(--r-mythic)), hsl(var(--motm)), hsl(var(--rating)), hsl(var(--r-mythic)));
+    background-size: 300% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: sheen 6s linear infinite;
+  }
+
+  .marquee {
+    animation: marquee var(--marquee-duration, 40s) linear infinite;
+  }
+  .marquee:hover {
+    animation-play-state: paused;
+  }
+
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@keyframes sheen {
+  to {
+    background-position: 300% 0;
+  }
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rise {
+  animation: rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -158,4 +265,119 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ===================================================================
+ * Player card — tier palettes and holo foil.
+ * Cards look the same in both themes: they are collectible objects.
+ * =================================================================== */
+.pcard {
+  --mx: 50%;
+  --my: 30%;
+  --rx: 0deg;
+  --ry: 0deg;
+  --foil-opacity: 0.35;
+  clip-path: polygon(0 0, calc(100% - 1.6em) 0, 100% 1.6em, 100% 100%, 1.6em 100%, 0 calc(100% - 1.6em));
+  background: var(--card-bg);
+  color: var(--card-ink);
+  transform: perspective(900px) rotateX(var(--rx)) rotateY(var(--ry));
+  transform-style: preserve-3d;
+  transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.pcard[data-tilting="true"] {
+  transition: transform 0.08s linear;
+}
+.pcard-frame {
+  clip-path: inherit;
+  box-shadow: inset 0 0 0 1.5px var(--card-edge), inset 0 0 0 5px transparent, inset 0 0 0 6px var(--card-edge-soft);
+}
+.pcard-foil {
+  mix-blend-mode: color-dodge;
+  opacity: var(--foil-opacity);
+  background:
+    radial-gradient(farthest-corner circle at var(--mx) var(--my), rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0.08) 28%, transparent 55%),
+    repeating-conic-gradient(from 0deg at var(--mx) var(--my), #ff5f6d 0deg, #ffc371 24deg, #47e5bc 48deg, #4facfe 72deg, #a77bff 96deg, #ff5f6d 120deg);
+  background-blend-mode: overlay;
+  transition: opacity 0.4s;
+}
+.pcard-stripes {
+  background-image: repeating-linear-gradient(-60deg, var(--card-line) 0 1px, transparent 1px 7px);
+}
+.pcard-accent { color: var(--card-accent); }
+.pcard-muted { color: var(--card-muted); }
+.pcard-rule { background: var(--card-line-strong); }
+
+.tier-grassroots {
+  --card-bg: linear-gradient(162deg, #4a3226 0%, #22160f 55%, #3a251a 100%);
+  --card-ink: #f6e7d9;
+  --card-muted: #c9a68d;
+  --card-accent: #e79a62;
+  --card-edge: #c88457;
+  --card-edge-soft: rgba(232, 154, 98, 0.25);
+  --card-line: rgba(255, 220, 190, 0.05);
+  --card-line-strong: rgba(255, 220, 190, 0.18);
+  --foil-opacity: 0.12;
+}
+.tier-academy {
+  --card-bg: linear-gradient(162deg, #e3e8ef 0%, #a6b0be 42%, #5d6775 100%);
+  --card-ink: #12151b;
+  --card-muted: #3b434f;
+  --card-accent: #1c2431;
+  --card-edge: #f5f8fc;
+  --card-edge-soft: rgba(18, 21, 27, 0.25);
+  --card-line: rgba(18, 21, 27, 0.06);
+  --card-line-strong: rgba(18, 21, 27, 0.22);
+  --foil-opacity: 0.22;
+}
+.tier-firstteam {
+  --card-bg: linear-gradient(162deg, #fbe7a1 0%, #e1b149 40%, #9b6f18 100%);
+  --card-ink: #1f1504;
+  --card-muted: #5a4210;
+  --card-accent: #2a1c03;
+  --card-edge: #fff4c9;
+  --card-edge-soft: rgba(42, 28, 3, 0.3);
+  --card-line: rgba(42, 28, 3, 0.07);
+  --card-line-strong: rgba(42, 28, 3, 0.25);
+  --foil-opacity: 0.3;
+}
+.tier-elite {
+  --card-bg: linear-gradient(155deg, #0f4752 0%, #122b55 48%, #43206b 100%);
+  --card-ink: #ecfdff;
+  --card-muted: #9fd3dc;
+  --card-accent: #63f2e1;
+  --card-edge: #63f2e1;
+  --card-edge-soft: rgba(99, 242, 225, 0.3);
+  --card-line: rgba(160, 255, 245, 0.05);
+  --card-line-strong: rgba(160, 255, 245, 0.2);
+  --foil-opacity: 0.45;
+}
+.tier-worldclass {
+  --card-bg: radial-gradient(120% 80% at 80% 0%, #5b1407 0%, transparent 55%), linear-gradient(165deg, #1b0b0a 0%, #09080c 55%, #1d0a05 100%);
+  --card-ink: #fff2ea;
+  --card-muted: #d8a491;
+  --card-accent: #ff6a3d;
+  --card-edge: #ff6a3d;
+  --card-edge-soft: rgba(255, 106, 61, 0.35);
+  --card-line: rgba(255, 140, 100, 0.05);
+  --card-line-strong: rgba(255, 140, 100, 0.22);
+  --foil-opacity: 0.4;
+}
+.tier-panenka {
+  --card-bg: radial-gradient(120% 70% at 0% 0%, rgba(255, 95, 109, 0.35), transparent 50%), radial-gradient(110% 70% at 100% 100%, rgba(71, 229, 188, 0.3), transparent 55%), radial-gradient(90% 60% at 100% 0%, rgba(167, 123, 255, 0.35), transparent 60%), linear-gradient(160deg, #0d0b14, #07060b);
+  --card-ink: #fffaf2;
+  --card-muted: #cdbfe6;
+  --card-accent: #ffd36b;
+  --card-edge: #ffd36b;
+  --card-edge-soft: rgba(255, 211, 107, 0.35);
+  --card-line: rgba(255, 255, 255, 0.05);
+  --card-line-strong: rgba(255, 255, 255, 0.22);
+  --foil-opacity: 0.6;
+}
+.tier-panenka .pcard-prism {
+  background: linear-gradient(100deg, #ff5f6d, #ffc371, #47e5bc, #a77bff, #ff5f6d);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: sheen 5s linear infinite;
 }

@@ -39,35 +39,25 @@ function getContrastRatio(rgb1: [number, number, number], rgb2: [number, number,
 
 // Exact Theme Tokens from globals.css
 const THEMES = {
-  touchline: {
-    background: hslToRgb(222, 47, 8),
-    foreground: hslToRgb(60, 9, 93),
-    primary: hslToRgb(78, 100, 50),
-    primaryForeground: hslToRgb(222, 47, 8),
-    card: hslToRgb(222, 40, 11),
-    cardForeground: hslToRgb(60, 9, 93),
-    muted: hslToRgb(222, 30, 16),
-    mutedForeground: hslToRgb(222, 15, 65),
+  floodlight: {
+    background: hslToRgb(252, 24, 5),
+    foreground: hslToRgb(40, 33, 92),
+    primary: hslToRgb(12, 100, 61),
+    primaryForeground: hslToRgb(252, 30, 6),
+    card: hslToRgb(251, 20, 8),
+    cardForeground: hslToRgb(40, 33, 92),
+    muted: hslToRgb(250, 16, 13),
+    mutedForeground: hslToRgb(248, 10, 64),
   },
-  matchday: {
-    background: hslToRgb(40, 33, 95),
-    foreground: hslToRgb(150, 30, 10),
-    primary: hslToRgb(150, 50, 25),
-    primaryForeground: hslToRgb(40, 33, 95),
-    card: hslToRgb(40, 30, 98),
-    cardForeground: hslToRgb(150, 30, 10),
-    muted: hslToRgb(40, 15, 88),
-    mutedForeground: hslToRgb(150, 20, 35),
-  },
-  champions: {
-    background: hslToRgb(0, 0, 5),
-    foreground: hslToRgb(45, 20, 90),
-    primary: hslToRgb(45, 80, 50),
-    primaryForeground: hslToRgb(0, 0, 5),
-    card: hslToRgb(0, 0, 9),
-    cardForeground: hslToRgb(45, 20, 90),
-    muted: hslToRgb(0, 0, 14),
-    mutedForeground: hslToRgb(0, 0, 65),
+  programme: {
+    background: hslToRgb(40, 38, 93),
+    foreground: hslToRgb(252, 30, 9),
+    primary: hslToRgb(11, 88, 42),
+    primaryForeground: hslToRgb(42, 45, 97),
+    card: hslToRgb(42, 45, 96.5),
+    cardForeground: hslToRgb(252, 30, 9),
+    muted: hslToRgb(40, 26, 87),
+    mutedForeground: hslToRgb(250, 10, 36),
   },
 };
 
