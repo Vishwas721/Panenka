@@ -12,12 +12,12 @@
 - [x] Phase 1 verification (all unit & integration tests passing, build green)
 
 ## Phase 2 — Core Application
-- [ ] Application shell, routing, brand config, base theme tokens
-- [ ] Players CRUD (add, edit, view, archive, restore, delete)
-- [ ] Matches CRUD
-- [ ] Log Match workflow with transactional saves
-- [ ] Integration tests
-- [ ] Phase 2 verification
+- [x] Application shell, routing, brand config, base theme tokens
+- [x] Players CRUD (add, edit, view, archive, restore, delete guard)
+- [x] Matches CRUD (fixtures, completed, abandoned results)
+- [x] Log Match workflow with transactional saves
+- [x] Integration tests (all 50 unit and integration tests passing)
+- [x] Phase 2 verification (lint, typecheck, tests, and build green)
 
 ## Phase 3 — Analytics
 - [ ] Dashboard
