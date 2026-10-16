@@ -1,0 +1,38 @@
+{
+  "extends": ["next/core-web-vitals", "prettier"],
+  "plugins": ["import"],
+  "rules": {
+    "import/no-restricted-paths": [
+      "error",
+      {
+        "zones": [
+          {
+            "target": "./src/components",
+            "from": "./src/server/db",
+            "message": "Components must not import from the database layer directly. Use services instead."
+          },
+          {
+            "target": "./src/app",
+            "from": "./src/server/db",
+            "message": "Pages/routes must not import from the database layer directly. Use services instead."
+          },
+          {
+            "target": "./mcp",
+            "from": "./src/server/db",
+            "message": "MCP handlers must not import from the database layer directly. Use services instead."
+          }
+        ]
+      }
+    ],
+    "@next/next/no-html-link-for-pages": "error",
+    "no-console": ["warn", { "allow": ["warn", "error"] }]
+  },
+  "overrides": [
+    {
+      "files": ["*.test.ts", "*.test.tsx", "tests/**/*"],
+      "rules": {
+        "no-console": "off"
+      }
+    }
+  ]
+}
