@@ -20,11 +20,11 @@
 - [x] Phase 2 verification (lint, typecheck, tests, and build green)
 
 ## Phase 3 — Analytics
-- [ ] Dashboard
-- [ ] Goal & Assist Breakdown with drill-down
-- [ ] Player profiles
-- [ ] Comparison page
-- [ ] Rankings, milestones, and charts verification
+- [x] Dashboard (summary cards, leaderboard highlights, Recharts bar chart, recent activity)
+- [x] Goal & Assist Breakdown signature page with drill-down modals
+- [x] Player profiles (metrics, match-by-match chart, recent form, match history)
+- [x] Comparison page (picker, grouped charts, side-by-side metrics table, disparity warning)
+- [x] Rankings, milestones, and charts verification (all 78 unit & integration tests passing)
 
 ## Phase 4 — Visual Polish
 - [ ] All three themes on every route
