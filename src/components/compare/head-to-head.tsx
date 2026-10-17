@@ -4,6 +4,7 @@ import type { PlayerInsight } from "@/server/services/insights.service";
 import { PlayerCard } from "@/components/pk/player-card";
 import { toCardData } from "@/components/pk/card-data";
 import { Radar } from "@/components/pk/radar";
+import { ALL_ATTRIBUTE_KEYS } from "@/lib/stats/attributes";
 import { SectionHeading, KeywordChip } from "@/components/pk/kit";
 import { fmtNum, fmtPct, fmtRating, shortName } from "@/components/pk/format";
 import { rarityRank } from "@/lib/stats/keywords";
@@ -136,13 +137,14 @@ export function HeadToHead({ a, b }: { a: PlayerInsight; b: PlayerInsight }) {
       <div className="grid gap-8 lg:grid-cols-[minmax(0,26rem)_1fr]">
         {/* Radar */}
         <section className="panel p-5 sm:p-6">
-          <SectionHeading index="01" title="Shape" note="six attributes" />
+          <SectionHeading index="01" title="Shape" note="all seven attributes" />
           {a.attrs && b.attrs ? (
             <Radar
               series={[
                 { label: nameA, values: a.attrs, colorVar: "--primary" },
                 { label: nameB, values: b.attrs, colorVar: "--assists" },
               ]}
+              keys={ALL_ATTRIBUTE_KEYS}
             />
           ) : (
             <p className="py-16 text-center font-serif text-lg italic text-muted-foreground">Both players need an appearance to draw a shape.</p>

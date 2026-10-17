@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowLeft, ArrowDownRight, ArrowUpRight, Minus, Star, Flame } from "lucide-react";
 import type { PlayerInsightDetail } from "@/server/services/insights.service";
 import type { SplitLine, TimelinePoint } from "@/lib/stats/profile";
-import { ATTRIBUTE_KEYS, ATTRIBUTE_META } from "@/lib/stats/attributes";
+import { ATTRIBUTE_META, cardKeys } from "@/lib/stats/attributes";
 import { FAMILY_LABELS, KEYWORD_CATALOGUE, RARITIES, rarityRank, type Family, type Keyword } from "@/lib/stats/keywords";
 import { cn } from "@/lib/utils";
 import { PlayerCard } from "@/components/pk/player-card";
@@ -193,7 +193,9 @@ function Overview({ insight }: { insight: P }) {
           { l: "Per 90", v: fmtNum(p.per90?.ga ?? null), s: p.per90 ? `${p.per90.goals}G · ${p.per90.assists}A` : "needs minutes" },
           { l: "Record", v: `${p.record.wins}-${p.record.draws}-${p.record.losses}`, s: `${fmtPct(p.record.winRate)} win rate` },
           { l: "Points / game", v: fmtNum(p.record.ppg), s: `${p.record.known} scored games` },
-          { l: "Team goals", v: fmtPct(p.teamShare.involvement), s: "involved in" },
+          cardKeys(insight.player.position).includes("DEF")
+            ? { l: "Clean sheets", v: p.defence.cleanSheets, s: `${fmtNum(p.defence.concededPerApp)} conceded / game` }
+            : { l: "Team goals", v: fmtPct(p.teamShare.involvement), s: "involved in" },
           { l: "Best rating", v: fmtRating(p.rating.best), s: `worst ${fmtRating(p.rating.worst)}` },
         ].map((x) => (
           <div key={x.l} className="bg-card p-4">
@@ -222,9 +224,9 @@ function Overview({ insight }: { insight: P }) {
         <section className="min-w-0">
           <SectionHeading index="B" title="Attributes" note="how the card is built" />
           <div className="panel grid gap-6 p-5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:p-6">
-            {attrs && <div className="mx-auto w-full max-w-[20rem] min-w-0"><Radar series={[{ label: "Attributes", values: attrs, colorVar: "--primary" }]} size={300} /></div>}
+            {attrs && <div className="mx-auto w-full max-w-[20rem] min-w-0"><Radar series={[{ label: "Attributes", values: attrs, colorVar: "--primary" }]} size={300} keys={cardKeys(insight.player.position)} /></div>}
             <ul className="space-y-4 self-center">
-              {ATTRIBUTE_KEYS.map((k) => (
+              {cardKeys(insight.player.position).map((k) => (
                 <li key={k}>
                   <div className="flex items-baseline justify-between">
                     <span className="font-display text-lg font-extrabold uppercase tracking-wide">
@@ -608,6 +610,8 @@ function Records({ insight }: { insight: P }) {
             <Stat label="Bounce-backs" value={p.bounceBacks} size="sm" sub="+2 rating on last game" />
             <Stat label="Super-sub" value={`${p.superSub.goals}G ${p.superSub.assists}A`} size="sm" sub={`${p.superSub.motm} MOTM off the bench`} />
             <Stat label="Silent 9s" value={p.silentMaestro} size="sm" sub="9+ without G/A" />
+            <Stat label="Clean sheets" value={p.defence.cleanSheets} size="sm" sub={`best run ${p.streaks.cleanSheet.best}`} />
+            <Stat label="Conceded / game" value={fmtNum(p.defence.concededPerApp)} size="sm" sub={`${p.defence.games} games on the pitch`} />
             <Stat label="Opponents scored v" value={`${p.distinct.opponentsScoredAgainst}/${p.distinct.opponents}`} size="sm" />
           </div>
         </section>

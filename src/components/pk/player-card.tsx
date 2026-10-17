@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { ATTRIBUTE_KEYS, type Attributes, type CardTier } from "@/lib/stats/attributes";
+import { cardKeys, type Attributes, type CardTier } from "@/lib/stats/attributes";
 import type { Keyword } from "@/lib/stats/keywords";
 import { initials, POSITION_SHORT, fmtRating } from "./format";
 
@@ -150,7 +150,7 @@ export function PlayerCard({
 
         {/* Attributes */}
         <div className="mt-[0.7em] grid grid-cols-3 gap-x-[0.9em] gap-y-[0.35em]">
-          {ATTRIBUTE_KEYS.map((k) => (
+          {cardKeys(data.position).map((k) => (
             <div key={k} className="flex items-baseline justify-between gap-1">
               <span className="pcard-muted font-mono font-medium tracking-[0.1em]" style={{ fontSize: "0.72em" }}>
                 {k}

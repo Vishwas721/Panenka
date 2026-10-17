@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ATTRIBUTE_KEYS, ATTRIBUTE_META, type Attributes } from "@/lib/stats/attributes";
+import { ATTRIBUTE_KEYS as DEFAULT_KEYS, ATTRIBUTE_META, type AttributeKey, type Attributes } from "@/lib/stats/attributes";
 import { cn } from "@/lib/utils";
 
 export interface RadarSeries {
@@ -9,8 +9,9 @@ export interface RadarSeries {
   colorVar: string;
 }
 
-/** Hexagonal attribute radar. Accepts one or two series for head-to-heads. */
-export function Radar({ series, size = 320, className, showValues = true }: { series: RadarSeries[]; size?: number; className?: string; showValues?: boolean }) {
+/** Attribute radar, one or two series. `keys` picks the axes (defaults to the attacking six; pass `cardKeys(position)` or all seven). */
+export function Radar({ series, size = 320, className, showValues = true, keys = DEFAULT_KEYS }: { series: RadarSeries[]; size?: number; className?: string; showValues?: boolean; keys?: AttributeKey[] }) {
+  const ATTRIBUTE_KEYS = keys;
   const pad = 46;
   const c = size / 2;
   const r = c - pad;
