@@ -112,6 +112,8 @@ Panenka/
 
 ## Quick Start
 
+> **Windows, one command:** double-click `start.bat` (or run it from a terminal). It checks Docker, installs dependencies on first run, starts PostgreSQL, applies migrations, opens http://localhost:3000 and runs the dev server. Set `PANENKA_NO_BROWSER=1` to skip opening the browser.
+
 ### 1. Prerequisites
 - **Node.js**: $\ge 22.0.0$ ([`.nvmrc`](file:///c:/Panenka/.nvmrc))
 - **pnpm**: $\ge 9.0.0$
