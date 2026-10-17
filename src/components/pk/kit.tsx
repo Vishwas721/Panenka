@@ -7,7 +7,7 @@ import Link from "next/link";
 import {
   Target, Handshake, Zap, Shirt, Star, Flame, TrendingUp, Gauge, Trophy, Timer, Armchair,
   Home, Swords, Landmark, Crosshair, CalendarDays, Hexagon, Fingerprint, Medal, Crown,
-  Skull, Award, Moon, type LucideIcon,
+  Skull, Award, Moon, Shield, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Family, Rarity, Keyword, KeywordDef } from "@/lib/stats/keywords";
@@ -252,6 +252,7 @@ export const FAMILY_ICONS: Record<Family, LucideIcon> = {
   competition: Medal,
   season: Trophy,
   month: Moon,
+  defence: Shield,
 };
 
 export const RARITY_LABEL: Record<Rarity, string> = {

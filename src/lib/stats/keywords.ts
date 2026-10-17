@@ -10,7 +10,7 @@
  * Pure: evaluation only reads a PlayerProfile and derived attributes.
  */
 import type { PlayerProfile, TimelinePoint } from "./profile";
-import { ATTRIBUTE_KEYS, type AttributeKey, type Attributes, archetype } from "./attributes";
+import { ALL_ATTRIBUTE_KEYS, cardKeys, type AttributeKey, type Attributes, archetype } from "./attributes";
 
 export type Rarity = "common" | "rare" | "epic" | "legendary" | "mythic";
 export const RARITIES: Rarity[] = ["common", "rare", "epic", "legendary", "mythic"];
@@ -20,7 +20,7 @@ export type Family =
   | "goals" | "assists" | "ga" | "apps" | "motm" | "hauls" | "streaks" | "rating"
   | "rates" | "results" | "minutes" | "bench" | "venue" | "opponents" | "career"
   | "clutch" | "calendar" | "attributes" | "archetype" | "feat" | "squad" | "rivalry"
-  | "competition" | "season" | "month";
+  | "competition" | "season" | "month" | "defence";
 
 export const FAMILY_LABELS: Record<Family, string> = {
   goals: "Goalscoring",
@@ -48,6 +48,7 @@ export const FAMILY_LABELS: Record<Family, string> = {
   competition: "Competitions",
   season: "Season Awards",
   month: "Monthly Awards",
+  defence: "Defending",
 };
 
 export interface KeywordDef {
@@ -74,6 +75,8 @@ export interface KeywordContext {
   profile: PlayerProfile;
   attrs: Attributes | null;
   ovr: number | null;
+  /** Player position; picks the card attributes and archetype. */
+  position?: string;
   /** Extra squad-relative keywords computed elsewhere (see squadKeywords). */
   squad?: Keyword[];
 }
@@ -407,6 +410,36 @@ const LADDERS: Ladder[] = [
     steps: [[1, "Silent Maestro"], [3, "Unsung Hero"], [5, "Invisible Genius"]],
   },
   {
+    id: "clean-sheets", family: "defence", describe: (t) => `Keep ${t} clean sheet${t === 1 ? "" : "s"} (started or 60+ minutes)`,
+    metric: (c) => p(c).defence.cleanSheets,
+    steps: [[1, "Shut Out"], [3, "Clean Hands"], [5, "Padlock"], [10, "Ten Shutouts"], [15, "Iron Curtain"], [25, "Fortress"], [50, "The Vault"], [100, "Hundred Shutouts"]],
+  },
+  {
+    id: "clean-sheet-streak", family: "defence", describe: (t) => `Keep ${t} clean sheets in a row`,
+    metric: (c) => p(c).streaks.cleanSheet.best,
+    steps: [[2, "Back-to-Back Shutouts"], [3, "Locked Down"], [5, "Impenetrable"], [8, "No Way Through"], [12, "Untouchable Defence"]],
+  },
+  {
+    id: "clean-sheet-rate", family: "defence", describe: (t) => `Keep a clean sheet in ${pct(t)} of games (5+ games)`,
+    metric: (c) => gate(p(c).defence.games >= 5, p(c).defence.cleanSheetRate),
+    steps: [[0.2, "Tight at the Back"], [0.3, "Hard to Break"], [0.4, "Miserly"], [0.5, "Every Other Shutout"], [0.65, "Shutdown Specialist"], [0.8, "Brick by Brick"]],
+  },
+  {
+    id: "low-conceded", family: "defence", lowerIsBetter: true, describe: (t) => `Concede ${t} or fewer per game on average (5+ games)`,
+    metric: (c) => gate(p(c).defence.games >= 5, p(c).defence.concededPerApp),
+    steps: [[1.5, "Holding Firm"], [1.2, "Organised"], [1.0, "One-a-Game Max"], [0.8, "Stingy"], [0.6, "Watertight"], [0.4, "Airtight"], [0.25, "Impassable"]],
+  },
+  {
+    id: "defender-goals", family: "defence", describe: (t) => `Score ${t} goal${t === 1 ? "" : "s"} as a defender or keeper`,
+    metric: (c) => (["CB", "LB", "RB", "GK"].includes(c.position ?? "") ? p(c).goals : null),
+    steps: [[1, "Up from the Back"], [3, "Set-Piece Threat"], [5, "Goalscoring Defender"], [10, "Defender? Striker."], [20, "Libero Legend"]],
+  },
+  {
+    id: "defender-assists", family: "defence", describe: (t) => `Provide ${t} assist${t === 1 ? "" : "s"} as a defender or keeper`,
+    metric: (c) => (["CB", "LB", "RB", "GK"].includes(c.position ?? "") ? p(c).assists : null),
+    steps: [[1, "Overlap"], [3, "Attacking Full-Back"], [5, "Wing-Back Supreme"], [10, "Playmaking Defender"], [20, "Total Footballer"]],
+  },
+  {
     id: "ovr", family: "attributes", describe: (t) => `Reach ${t} overall`,
     metric: (c) => c.ovr,
     steps: [[60, "Academy Graduate"], [65, "Rotation Option"], [70, "First-Teamer"], [75, "Key Player"], [80, "Elite"], [85, "World Class"], [90, "Panenka Tier"], [95, "Ballon d'Or Shortlist"], [99, "Perfect Player"]],
@@ -415,6 +448,7 @@ const LADDERS: Ladder[] = [
 
 const ATTRIBUTE_LADDER_NAMES: Record<AttributeKey, [string, string, string]> = {
   FIN: ["Sharp", "Clinical", "Lethal Finisher"],
+  DEF: ["Solid", "Rock", "Brick Wall"],
   CRE: ["Imaginative", "Visionary", "Genius Passer"],
   IMP: ["Influential", "Game Changer", "Talismanic"],
   CON: ["Steady", "Metronome", "Machine"],
@@ -422,7 +456,7 @@ const ATTRIBUTE_LADDER_NAMES: Record<AttributeKey, [string, string, string]> = {
   CLU: ["Composed", "Clutch", "Ice Cold"],
 };
 
-for (const k of ATTRIBUTE_KEYS) {
+for (const k of ALL_ATTRIBUTE_KEYS) {
   const names = ATTRIBUTE_LADDER_NAMES[k];
   LADDERS.push({
     id: `attr-${k.toLowerCase()}`,
@@ -487,8 +521,8 @@ const FEATS: Feat[] = [
   { id: "feat:road-runner", name: "Road Runner", description: "Away average 0.7+ above home (3+ of each)", family: "venue", rarity: "rare", test: (c) => { const h = venueLine(c, "HOME"); const a = venueLine(c, "AWAY"); return !!h && !!a && h.apps >= 3 && a.apps >= 3 && (a.avgRating ?? 0) - (h.avgRating ?? 99) >= 0.7; } },
   { id: "feat:iron-ninety", name: "Iron Ninety", description: "Play the full 90 in 10+ matches", family: "minutes", rarity: "rare", test: (c) => tl(c).filter((t) => (t.minutes ?? 0) >= 90).length >= 10 },
   { id: "feat:all-rounder", name: "All-Rounder", description: "FIN, CRE and IMP all 65+", family: "attributes", rarity: "epic", test: (c) => !!c.attrs && c.attrs.FIN >= 65 && c.attrs.CRE >= 65 && c.attrs.IMP >= 65 },
-  { id: "feat:specialist", name: "Specialist", description: "One attribute 85+, every other 60 or below", family: "attributes", rarity: "epic", test: (c) => { if (!c.attrs) return false; const v = ATTRIBUTE_KEYS.map((k) => c.attrs![k]).sort((a, b) => b - a); return v[0]! >= 85 && v[1]! <= 60; } },
-  { id: "feat:balanced", name: "Balanced Profile", description: "All six attributes within 10 points (8+ apps)", family: "attributes", rarity: "rare", test: (c) => { if (!c.attrs || c.profile.apps < 8) return false; const v = ATTRIBUTE_KEYS.map((k) => c.attrs![k]); return Math.max(...v) - Math.min(...v) <= 10; } },
+  { id: "feat:specialist", name: "Specialist", description: "One attribute 85+, every other 60 or below", family: "attributes", rarity: "epic", test: (c) => { if (!c.attrs) return false; const v = cardKeys(c.position ?? "UNKNOWN").map((k) => c.attrs![k]).sort((a, b) => b - a); return v[0]! >= 85 && v[1]! <= 60; } },
+  { id: "feat:balanced", name: "Balanced Profile", description: "All six attributes within 10 points (8+ apps)", family: "attributes", rarity: "rare", test: (c) => { if (!c.attrs || c.profile.apps < 8) return false; const v = cardKeys(c.position ?? "UNKNOWN").map((k) => c.attrs![k]); return Math.max(...v) - Math.min(...v) <= 10; } },
   { id: "feat:pure-scorer", name: "Pure Scorer", description: "10+ goals with assists at most a fifth of that", family: "goals", rarity: "rare", test: (c) => c.profile.goals >= 10 && c.profile.assists <= c.profile.goals / 5 },
   { id: "feat:pure-creator", name: "Pure Creator", description: "10+ assists with goals at most a fifth of that", family: "assists", rarity: "rare", test: (c) => c.profile.assists >= 10 && c.profile.goals <= c.profile.assists / 5 },
   { id: "feat:twin-threat", name: "Twin Threat", description: "10+ goals and assists within two of each other", family: "ga", rarity: "epic", test: (c) => c.profile.goals >= 10 && Math.abs(c.profile.goals - c.profile.assists) <= 2 },
@@ -504,6 +538,7 @@ const ARCHETYPE_NAMES = [
   "Complete Forward", "Talisman", "Clinical Machine", "Hot-Streak Hitman", "Big-Game Assassin",
   "Conductor", "Metronome Maestro", "Creative Spark", "Decisive Architect", "Lighthouse",
   "Man of the Moment", "Hero Ball", "Steady Climber", "Ice Veins", "Rising Closer",
+  "Ball-Playing Defender", "Defensive Leader", "Brick Wall", "Rising Rock", "Last Line",
 ];
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
@@ -643,7 +678,7 @@ export function evaluateKeywords(c: KeywordContext): KeywordResult {
   }
 
   if (c.profile.apps >= 5) {
-    const a = archetype(c.attrs);
+    const a = archetype(c.attrs, c.position);
     const def = a && ARCHETYPE_DEFS.find((d) => d.name === a.name);
     if (def) {
       unlocked.push(def);
