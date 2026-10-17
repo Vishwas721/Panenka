@@ -69,7 +69,7 @@ function Hero({ insight, actions }: { insight: P; actions?: React.ReactNode }) {
 
   return (
     <section className="relative mb-12 grid gap-10 lg:grid-cols-[auto_1fr] lg:gap-14">
-      <div className="pitch-lines pointer-events-none absolute -inset-x-10 -top-10 bottom-0 -z-10 opacity-70 [mask-image:radial-gradient(closest-side,black,transparent)]" />
+      <div className="pitch-lines pointer-events-none absolute -inset-x-2 -top-10 sm:-inset-x-10 bottom-0 -z-10 opacity-70 [mask-image:radial-gradient(closest-side,black,transparent)]" />
       <div className="rise mx-auto lg:mx-0">
         <PlayerCard data={toCardData(insight)} size="lg" />
       </div>
@@ -219,10 +219,10 @@ function Overview({ insight }: { insight: P }) {
 
       <div className="grid gap-10 lg:grid-cols-[1.1fr_1fr]">
         {/* Attributes */}
-        <section>
+        <section className="min-w-0">
           <SectionHeading index="B" title="Attributes" note="how the card is built" />
-          <div className="panel grid gap-6 p-5 sm:grid-cols-[1fr_1fr] sm:p-6">
-            {attrs && <Radar series={[{ label: "Attributes", values: attrs, colorVar: "--primary" }]} size={300} />}
+          <div className="panel grid gap-6 p-5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:p-6">
+            {attrs && <div className="mx-auto w-full max-w-[20rem] min-w-0"><Radar series={[{ label: "Attributes", values: attrs, colorVar: "--primary" }]} size={300} /></div>}
             <ul className="space-y-4 self-center">
               {ATTRIBUTE_KEYS.map((k) => (
                 <li key={k}>
@@ -241,7 +241,7 @@ function Overview({ insight }: { insight: P }) {
         </section>
 
         {/* Form + distribution */}
-        <section className="space-y-10">
+        <section className="min-w-0 space-y-10">
           <div>
             <SectionHeading index="C" title="Form guide" note="last ten, newest first" />
             <div className="panel scrollbar-none overflow-x-auto p-4">
@@ -326,7 +326,7 @@ function NextUnlocks({ insight }: { insight: P }) {
           </div>
           <div className="mt-2 flex items-center gap-3">
             <Meter value={n.pct} max={1} tone={`r-${n.keyword.rarity}`} />
-            <span className="w-10 shrink-0 text-right font-mono text-xs">{Math.round(n.pct * 100)}%</span>
+            <span className="w-10 shrink-0 text-right font-mono text-xs">{Math.floor(n.pct * 100)}%</span>
           </div>
           <p className="mt-1.5 text-xs text-muted-foreground">{n.keyword.description}</p>
         </div>
