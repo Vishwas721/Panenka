@@ -38,54 +38,47 @@ Panenka is an independent football analytics application built from scratch to t
 
 ## Key Features
 
-### 1. Analytics Dashboard (`/`)
-- **Executive Metric Cards**: Registered, active, and archived players, completed matches, total goals, assists, and combined goal contributions ($G+A$).
-- **Leaderboard Highlights**: Dedicated spotlights for Top Scorer, Top Assister, Most Goal Contributions, and Best Goals/App rate (with configurable minimum appearances threshold, default 3).
-- **Interactive Recharts Visualization**: Horizontal bar chart comparing top players across Goals, Assists, or Total Contributions, featuring exact-value tooltips and an accessible data table toggle.
-- **Recent Activity**: Live feeds of recent match results, scorers, and newly registered squad members.
+You log four numbers per player per match: **rating**, **goals**, **assists**, **man of the match**. Everything else is derived.
 
-### 2. Player Management (`/players`)
-- **Squad Directory**: Searchable, filterable, and sortable directory supporting player position badges, squad numbers, nationalities, preferred foot, and avatar fallbacks.
-- **Duplicate Prevention**: Case- and whitespace-insensitive name collision checks scoped to the player's team.
-- **Safe Lifecycle Management**: Soft-archive capabilities for players with historical match records. Permanent hard-delete is strictly guarded and only permitted for players with zero logged appearances.
+### 1. Matchday (`/`)
+The squad's No. 1 card beside a giant W/D/L scoreboard, the last ten results, Golden Boot / Playmaker / Star Man / Highest Rated / In Form boards, a squad rating trend, the rarest keywords earned and the unlocks closest to dropping.
 
-### 3. Match Logging (`/matches`, `/matches/new`, `/matches/[id]/edit`)
-- **Fixture Management**: Track opponents, competition, match venue (Home/Away/Neutral), venue names, date, and final scorelines.
-- **Transactional Performance Logging**: Rapid keyboard-friendly roster entry to log appearance status (`STARTED`, `SUBSTITUTE_USED`, `UNUSED_SUBSTITUTE`, `DID_NOT_PLAY`), minutes played ($0-130$), goals, and assists.
-- **Atomic Persistence**: Matches and all corresponding player performances are committed in an all-or-nothing Prisma transaction (`$transaction`).
-- **Live Score Validation**: Non-blocking contextual alert warning if logged player goals exceed the team's final recorded score.
+### 2. Squad (`/players`)
+Every player as a collectible card: overall (OVR), position, tier (Grassroots → Academy → First Team → Elite → World Class → Panenka), six attributes (FIN, CRE, IMP, CON, FRM, CLU), archetype and holographic foil that tilts with the pointer. Sort, filter, search, or switch to a dense table.
 
-### 4. Goal & Assist Breakdown (`/breakdown`)
-- **Signature Milestones**:
-  - **Hat-trick Kings**: Highlights players with single-match outputs of 3, 4, or 5+ goals.
-  - **Brace Masters**: Ranks players by occurrences of exactly 2 goals in a match.
-  - **Assists per Appearance**: Rates playmaking efficiency with an interactive minimum appearances threshold filter.
-- **Milestone Matrix**: Searchable and paginated table tracking Single-goal, Brace, Hat-trick, 4-Goal, 5+ Goal games, along with single and multi-assist performances.
-- **Match Drill-Down Dialogs**: Clicking on any player or milestone badge opens an interactive modal listing the exact historical matches behind the milestone.
+### 3. Player overview (`/players/[id]`)
+Hero card, archetype, signature keywords and squad ranks, then tabs for:
+- **Overview**: rating log with 5-game line, attribute radar, form guide, rating spread, nine streaks, next milestones, almost-unlocked keywords.
+- **Matches**: full log with result, role, minutes, G/A, rating and MOTM.
+- **Splits**: by result, home/away, starter/sub, competition, season, opponent, weekday and month.
+- **Keywords**: everything earned, grouped by family and rarity.
+- **Records**: greatest hits, hauls, personal bests, firsts and lasts.
 
-### 5. Player Profile (`/players/[id]`)
-- **Player Dossier**: Career totals, per-appearance scoring and assist rates, preferred foot, team, and squad number.
-- **Match-by-Match Visual Chart**: Compact bar chart visualizing scoring and assist output across fixtures.
-- **Recent Form Evaluation**: Evaluates performance over the last 5 appearances. Automatically guards against false precision by displaying "Insufficient data" when fewer than 3 appearances are recorded.
-- **Full Historical Log**: Chronological table of appearances, minutes played, opposing clubs, and scorelines.
+### 4. Fixtures and match reports (`/matches`, `/matches/[id]`)
+Ticket-style results grouped by month with filters; each report has a scoreboard, MOTM spotlight and a ratings ladder.
 
-### 6. Player Comparison (`/compare`)
-- **Head-to-Head Analysis**: Select 2 or 3 players via an interactive picker to compare metrics side-by-side.
-- **Grouped Comparison Chart**: Visual Recharts comparison across appearances, goals, assists, and rates.
-- **Tactical Efficiency Callout**: Plain-language analytical breakdown distinguishing cumulative volume from per-appearance rate efficiency.
-- **Sample Size & Disparity Warnings**: Highlights eligibility threshold shortfalls ($< 3$ matches) or exposure disparities (appearance gaps $\ge 5$ or ratio $\ge 2.0\times$).
+### 5. Team sheet (`/matches/new`, `/matches/[id]/edit`)
+Fast entry for rating (typed, nudged or slid, colour-coded live), goals and assists steppers, a single MOTM star, our/their score, whole-squad fill and inline competition creation.
+
+### 6. Records (`/records`)
+Record-holder wall and a 23-column sortable leaderboard. `/breakdown` redirects here.
+
+### 7. Head to Head (`/compare`)
+Two cards face off with an overlaid radar, a 22-row tale of the tape and shared vs unique keywords.
+
+### 8. Codex (`/keywords`)
+All 509 fixed keywords plus 24 dynamic families (per opponent, competition, season, month), who owns each, filterable by rarity and family.
+
+See [`docs/STATISTICS.md`](docs/STATISTICS.md) for every formula.
 
 ---
 
-## Theme Engine
+## Themes
 
-Panenka features a custom, tokenized 3-theme design system powered by `next-themes` and CSS custom variables:
+- **Floodlight** *(default)*: a night match. Violet-black sky, chalk text, ember, tide, gold and orchid signal colours, film grain and floodlight glows.
+- **Programme**: the printed matchday programme. Warm paper and ink with the same signals.
 
-1. **Touchline** *(Default)*: Stadium floodlights, midnight graphite (`#0B1118`), tactical borders, and electric lime accent (`#84CC16`).
-2. **Matchday**: Match programme aesthetic with warm ivory background (`#FDFBF7`) and forest pitch green (`#15803D`).
-3. **Champions**: Elite European night aesthetic with deep obsidian black (`#050505`) and metallic gold (`#F59E0B`).
-
-> **Accessibility Assurance**: All three themes are rigorously verified against WCAG AA color contrast guidelines ($\ge 4.5:1$ for body typography, $\ge 3.0:1$ for UI controls) through automated unit tests (`tests/unit/contrast.test.ts`).
+Type: Big Shoulders Display (signage numerals), Instrument Serif italic (editorial accents), JetBrains Mono (labels), Hanken Grotesk (body).
 
 ---
 
@@ -95,7 +88,7 @@ Panenka features a custom, tokenized 3-theme design system powered by `next-them
 Panenka/
 ├── src/
 │   ├── app/            # Next.js App Router (pages and server actions)
-│   ├── components/     # UI components grouped by feature (dashboard, players, matches, breakdown, compare)
+│   ├── components/     # UI components grouped by feature (dashboard, players, matches, records, compare, keywords, pk kit)
 │   ├── config/         # brand.ts (Single source of truth) and env.ts (Zod validation)
 │   ├── lib/
 │   │   ├── stats/      # Pure statistical calculation functions (no I/O, 100% unit tested)
