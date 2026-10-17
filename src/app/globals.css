@@ -291,14 +291,22 @@
   clip-path: inherit;
   box-shadow: inset 0 0 0 1.5px var(--card-edge), inset 0 0 0 5px transparent, inset 0 0 0 6px var(--card-edge-soft);
 }
+/* Foil rests as a faint sheen (none on the two lowest tiers) and lights up while tilting. */
 .pcard-foil {
   mix-blend-mode: color-dodge;
-  opacity: var(--foil-opacity);
+  opacity: calc(var(--foil-opacity) * var(--foil-rest, 0.3));
   background:
     radial-gradient(farthest-corner circle at var(--mx) var(--my), rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0.08) 28%, transparent 55%),
     repeating-conic-gradient(from 0deg at var(--mx) var(--my), #ff5f6d 0deg, #ffc371 24deg, #47e5bc 48deg, #4facfe 72deg, #a77bff 96deg, #ff5f6d 120deg);
   background-blend-mode: overlay;
   transition: opacity 0.4s;
+}
+.pcard[data-tilting="true"] .pcard-foil {
+  opacity: var(--foil-opacity);
+}
+.tier-grassroots,
+.tier-academy {
+  --foil-rest: 0;
 }
 .pcard-stripes {
   background-image: repeating-linear-gradient(-60deg, var(--card-line) 0 1px, transparent 1px 7px);
