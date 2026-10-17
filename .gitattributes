@@ -31,3 +31,7 @@
 
 # Lock files - exact
 pnpm-lock.yaml text eol=lf linguist-generated=true
+
+# Windows scripts must keep CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
