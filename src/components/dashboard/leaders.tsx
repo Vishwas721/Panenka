@@ -56,12 +56,12 @@ function BoardPanel({ board }: { board: Board }) {
               <li key={r.insight.player.id}>
                 <Link
                   href={`/players/${r.insight.player.id}`}
-                  className="flex items-center gap-3 px-5 py-2 transition-colors hover:bg-elevated/60"
+                  className="flex items-center gap-2 px-4 py-2 transition-colors hover:bg-elevated/60"
                 >
                   <span className="w-4 font-mono text-[0.7rem] text-muted-foreground">{i + 2}</span>
                   <PlayerAvatar name={r.insight.player.fullName} imageUrl={r.insight.player.imageUrl} className="h-7 w-7 text-[0.6rem]" />
                   <span className="min-w-0 flex-1 truncate text-sm">{shortName(r.insight.player)}</span>
-                  <span className="relative hidden h-1 w-14 overflow-hidden rounded-full bg-foreground/[0.07] sm:block">
+                  <span className="relative hidden h-1 w-10 shrink-0 overflow-hidden rounded-full bg-foreground/[0.07] 2xl:block">
                     <span
                       className="absolute inset-y-0 left-0 rounded-full"
                       style={{ width: `${(r.value / max) * 100}%`, backgroundColor: `hsl(var(${board.tone}))` }}
