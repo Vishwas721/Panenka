@@ -67,7 +67,7 @@ Record-holder wall and a 23-column sortable leaderboard. `/breakdown` redirects 
 Two cards face off with an overlaid radar, a 22-row tale of the tape and shared vs unique keywords.
 
 ### 8. Codex (`/keywords`)
-All 509 fixed keywords plus 24 dynamic families (per opponent, competition, season, month), who owns each, filterable by rarity and family.
+All 550+ fixed keywords plus 24 dynamic families (per opponent, competition, season, month), who owns each, filterable by rarity and family.
 
 See [`docs/STATISTICS.md`](docs/STATISTICS.md) for every formula.
 

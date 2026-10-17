@@ -97,28 +97,34 @@ Built from completed appearances, oldest first:
 
 ## Card attributes and OVR (`src/lib/stats/attributes.ts`)
 
-Six attributes on 1–99, each shrunk toward 50 by `n / (n + 4)` so small samples can't spike:
+Seven attributes on 1–99, each shrunk toward 50 by `n / (n + 4)` so small samples can't spike:
 
 | Key | Name | Source |
 | --- | --- | --- |
 | FIN | Finishing | goals per appearance |
 | CRE | Creativity | assists per appearance |
-| IMP | Impact | 60% MOTM rate, 40% G+A rate |
-| CON | Consistency | 65% share of 7.0+ games, 35% tightness of spread |
-| FRM | Form | last-5 rating plus recent G+A |
-| CLU | Clutch | rating and G+A in games decided by ≤ 1 goal |
+| DEF | Defending | 35% clean-sheet rate, 30% goals conceded per game, 35% rating (games started or 60+ minutes) |
+| IMP | Impact | 60% MOTM rate, 40% role-adjusted output |
+| CON | Consistency | 55% share of games at or above min(6.5, own average), 45% tightness of spread |
+| FRM | Form | 75% last-5 rating, 25% recent role-adjusted output |
+| CLU | Clutch | 65% rating, 35% role-adjusted output in games decided by ≤ 1 goal |
 
-**OVR** blends the average rating (mapped piecewise: 6.0→52, 7.0→68, 8.0→81, 9.0→92, 10→99) with the attributes, weighted by position group (attackers lean on FIN, midfielders on CRE, defenders and keepers on rating, IMP and CON).
+### Positional fairness
+
+- **Role-adjusted output** compares G+A per game with the position's normal rate (ST 0.75, wingers 0.65, CAM 0.60, CM 0.32, CDM/full-backs ~0.17, CB 0.08, GK floor 0.08). Meeting the role's rate scores about 70; a quiet game scores 40, not zero, because quiet games are normal for many roles.
+- **Cards show the six attributes that matter for the role.** GK, CB, LB, RB and CDM show DEF in place of FIN.
+- **OVR weights are set per position.** Attackers lean on FIN/CRE; CDM, full-backs, CBs and keepers lean on rating, consistency and DEF, and FIN carries no weight.
+- **Rating scale**: 5.0→42, 6.0→58, 6.5→64, 7.0→70, 8.0→82, 9.0→92, 10→99, so an ordinary job-done game isn't treated as poor.
 
 **Tiers**: Grassroots < 60 ≤ Academy < 69 ≤ First Team < 77 ≤ Elite < 84 ≤ World Class < 90 ≤ Panenka.
 
-**Archetype**: named from the two strongest attributes (15 combinations).
+**Archetype**: named from the two strongest card attributes (20 combinations, including defender types such as Brick Wall and Ball-Playing Defender).
 
 ## Keywords (`src/lib/stats/keywords.ts`)
 
-509 fixed keywords plus 24 dynamic templates:
+Fixed keywords (see the Codex for the live count) plus 24 dynamic templates:
 
-- **Ladders**: one metric, many named thresholds (goals, assists, apps, MOTM, hauls, streaks, average/peak rating, efficiency rates, win rate, minutes, bench impact, home/away, opponents, seasons, calendar, attributes, OVR). Rarity rises along each ladder: common → rare → epic → legendary → mythic.
+- **Ladders**: one metric, many named thresholds (goals, assists, apps, MOTM, clean sheets, goals conceded, defender goals/assists, hauls, streaks, average/peak rating, efficiency rates, win rate, minutes, bench impact, home/away, opponents, seasons, calendar, attributes, OVR). Rarity rises along each ladder: common → rare → epic → legendary → mythic.
 - **Feats**: one-off conditions (debut goal, hat-trick + MOTM, perfect storm, redemption arc, no bad days…).
 - **Archetypes**: the player's play-style title after 5+ apps.
 - **Dynamic**: minted per opponent (Tormentor/Nemesis/Executioner, Never Lost to X…), competition, weekday, and squad-relative honours per season and month (Golden Boot, Playmaker, MVP, Best Rated, Player of the Month, Top Scorer) plus all-time squad leaders. Ties share honours. Archived players are excluded from squad honours.
