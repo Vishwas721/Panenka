@@ -118,7 +118,7 @@ function identity(row: PlayerRow): PlayerIdentity {
 function buildInsights(rows: PlayerRow[]): PlayerInsight[] {
   const base = rows.map((row) => {
     const profile = buildProfile(toRecords(row));
-    const attrs = computeAttributes(profile);
+    const attrs = computeAttributes(profile, row.position);
     const ovr = computeOverall(profile, attrs, row.position);
     return { row, profile, attrs, ovr };
   });
@@ -131,8 +131,8 @@ function buildInsights(rows: PlayerRow[]): PlayerInsight[] {
     attrs,
     ovr,
     tier: cardTier(ovr),
-    archetype: archetype(attrs),
-    keywords: evaluateKeywords({ profile, attrs, ovr, squad: squad.get(row.id) ?? [] }),
+    archetype: archetype(attrs, row.position),
+    keywords: evaluateKeywords({ profile, attrs, ovr, position: row.position, squad: squad.get(row.id) ?? [] }),
   }));
 }
 

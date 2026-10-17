@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildProfile, teamScore, resultOf, type MatchRecord } from "./profile";
-import { computeAttributes, computeOverall, cardTier, ratingToScore, archetype } from "./attributes";
+import { computeAttributes, computeOverall, cardTier, ratingToScore, archetype, cardKeys } from "./attributes";
 import { evaluateKeywords, squadKeywords, KEYWORD_CATALOGUE } from "./keywords";
 
 let n = 0;
@@ -93,7 +93,7 @@ describe("buildProfile", () => {
 
 describe("attributes and OVR", () => {
   it("maps ratings monotonically onto 1-99", () => {
-    expect(ratingToScore(6)).toBe(52);
+    expect(ratingToScore(6)).toBe(58);
     expect(ratingToScore(10)).toBe(99);
     expect(ratingToScore(7.5)).toBeGreaterThan(ratingToScore(7));
   });
@@ -114,6 +114,46 @@ describe("attributes and OVR", () => {
   it("shrinks small samples toward the middle", () => {
     const one = computeAttributes(buildProfile([rec({ goals: 4, rating: 10, motm: true })]))!;
     expect(one.FIN).toBeLessThan(80);
+  });
+});
+
+describe("positional fairness", () => {
+  const games = (p: Partial<MatchRecord>, n = 8) => Array.from({ length: n }, () => rec(p));
+
+  it("does not punish a steady defender for not scoring", () => {
+    const cb = buildProfile(games({ rating: 7, goalsFor: 1, goalsAgainst: 0 }));
+    const st = buildProfile(games({ rating: 7, goalsFor: 1, goalsAgainst: 0 }));
+    const cbOvr = computeOverall(cb, computeAttributes(cb, "CB"), "CB")!;
+    const stOvr = computeOverall(st, computeAttributes(st, "ST"), "ST")!;
+    // Same ratings, no output: the defender (with clean sheets) must not trail the striker.
+    expect(cbOvr).toBeGreaterThanOrEqual(stOvr);
+  });
+
+  it("values an assist from a centre-back more than one from a striker", () => {
+    const rows = [rec({ assists: 1, rating: 7 }), ...games({ rating: 7 }, 3)];
+    const p = buildProfile(rows);
+    expect(computeAttributes(p, "CB")!.IMP).toBeGreaterThan(computeAttributes(p, "ST")!.IMP);
+  });
+
+  it("rewards clean sheets in DEF and conceding lowers it", () => {
+    const tight = computeAttributes(buildProfile(games({ goalsFor: 1, goalsAgainst: 0 })), "CB")!;
+    const leaky = computeAttributes(buildProfile(games({ goalsFor: 3, goalsAgainst: 3 })), "CB")!;
+    expect(tight.DEF).toBeGreaterThan(leaky.DEF + 15);
+  });
+
+  it("shows DEF instead of FIN on defensive cards", () => {
+    expect(cardKeys("CB")).toContain("DEF");
+    expect(cardKeys("CB")).not.toContain("FIN");
+    expect(cardKeys("ST")).toContain("FIN");
+    expect(cardKeys("ST")).not.toContain("DEF");
+  });
+
+  it("keeps a scoring striker ahead of a quiet one", () => {
+    const scorer = buildProfile(games({ goals: 1, rating: 7.5 }));
+    const quiet = buildProfile(games({ rating: 6 }));
+    expect(computeOverall(scorer, computeAttributes(scorer, "ST"), "ST")!).toBeGreaterThan(
+      computeOverall(quiet, computeAttributes(quiet, "ST"), "ST")! + 10,
+    );
   });
 });
 
