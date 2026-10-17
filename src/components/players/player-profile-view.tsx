@@ -148,7 +148,9 @@ function Hero({ insight, actions }: { insight: P; actions?: React.ReactNode }) {
                   <div className="eyebrow !text-[0.6rem]">{r.label}</div>
                   <div className="mt-0.5 flex items-baseline gap-1">
                     <span className={cn("numeral text-2xl", r.rank === 1 && "text-motm")}>#{r.rank}</span>
-                    <span className="font-mono text-[0.65rem] text-muted-foreground">top {100 - (r.percentile ?? 0) || 1}%</span>
+                    <span className="font-mono text-[0.65rem] text-muted-foreground">
+                      {r.rank === 1 ? "leader" : `top ${Math.ceil(((r.rank ?? 1) / r.of) * 100)}%`}
+                    </span>
                   </div>
                 </div>
               ))}
@@ -177,7 +179,7 @@ function Overview({ insight }: { insight: P }) {
     { label: "8.0+ rated", s: p.streaks.rating8, tone: "rating" },
     { label: "Unbeaten", s: p.streaks.unbeaten, tone: "win" },
     { label: "Winning", s: p.streaks.winning, tone: "win" },
-    { label: "Blank (no G/A)", s: p.streaks.blank, tone: "loss" },
+    { label: "Blank run", s: p.streaks.blank, tone: "loss" },
   ];
 
   return (
