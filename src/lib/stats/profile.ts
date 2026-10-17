@@ -124,6 +124,17 @@ export interface PlayerProfile {
     drawScorer: number;
   };
   teamShare: { teamGoals: number; involvement: number | null; goalShare: number | null };
+  /**
+   * Team defending while the player was on the pitch. A clean sheet only counts
+   * when the player started or played 60+ minutes, so cameo subs don't collect them.
+   */
+  defence: {
+    games: number;
+    cleanSheets: number;
+    cleanSheetRate: number | null;
+    conceded: number;
+    concededPerApp: number | null;
+  };
   hauls: {
     goals: { one: number; two: number; three: number; four: number; fivePlus: number };
     assists: { one: number; two: number; three: number; fourPlus: number };
@@ -144,6 +155,7 @@ export interface PlayerProfile {
     rating8: Streak;
     unbeaten: Streak;
     winning: Streak;
+    cleanSheet: Streak;
   };
   splits: {
     venue: SplitLine[];
@@ -252,6 +264,8 @@ export function matchScore(r: Pick<MatchRecord, "rating" | "goals" | "assists" |
   const base = r.rating !== null ? r.rating * 10 : 62;
   return round(base + r.goals * 9 + r.assists * 6 + (r.motm ? 8 : 0), 1);
 }
+
+const countsForDefence = (t: TimelinePoint) => t.started || (t.minutes ?? 0) >= 60;
 
 function streak(flags: boolean[]): Streak {
   let best = 0;
@@ -423,6 +437,11 @@ export function buildProfile(records: MatchRecord[]): PlayerProfile {
   const gaInScored = withResult.reduce((a, t) => a + t.goals + t.assists, 0);
   const goalsInScored = withResult.reduce((a, t) => a + t.goals, 0);
 
+  // Defence: only games the player meaningfully featured in
+  const defGames = withResult.filter(countsForDefence);
+  const conceded = defGames.reduce((a, t) => a + (t.goalsAgainst ?? 0), 0);
+  const cleanSheets = defGames.filter((t) => t.goalsAgainst === 0).length;
+
   // Streaks (chronological)
   const streaks = {
     scoring: streak(timeline.map((t) => t.goals > 0)),
@@ -434,6 +453,7 @@ export function buildProfile(records: MatchRecord[]): PlayerProfile {
     rating8: streak(timeline.filter((t) => t.rating !== null).map((t) => (t.rating as number) >= 8)),
     unbeaten: streak(withResult.map((t) => t.result !== "L")),
     winning: streak(withResult.map((t) => t.result === "W")),
+    cleanSheet: streak(withResult.filter(countsForDefence).map((t) => t.goalsAgainst === 0)),
   };
 
   const count = (pred: (t: TimelinePoint) => boolean) => timeline.filter(pred).length;
@@ -516,6 +536,13 @@ export function buildProfile(records: MatchRecord[]): PlayerProfile {
       teamGoals,
       involvement: teamGoals ? round(Math.min(1, gaInScored / teamGoals), 3) : null,
       goalShare: teamGoals ? round(Math.min(1, goalsInScored / teamGoals), 3) : null,
+    },
+    defence: {
+      games: defGames.length,
+      cleanSheets,
+      cleanSheetRate: defGames.length ? round(cleanSheets / defGames.length, 3) : null,
+      conceded,
+      concededPerApp: defGames.length ? round(conceded / defGames.length) : null,
     },
     hauls: {
       goals: {
