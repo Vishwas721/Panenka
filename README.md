@@ -15,7 +15,7 @@
 ## Table of Contents
 - [Product Overview](#product-overview)
 - [Key Features](#key-features)
-- [Theme Engine](#theme-engine)
+- [Themes](#themes)
 - [Architecture & Tech Stack](#architecture--tech-stack)
 - [Quick Start](#quick-start)
 - [Available Scripts](#available-scripts)
