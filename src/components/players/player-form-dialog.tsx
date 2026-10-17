@@ -1,88 +1,98 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  createPlayerSchema,
-  type CreatePlayerInput,
-} from "@/lib/validation";
-import {
-  createPlayerAction,
-  updatePlayerAction,
-} from "@/app/actions/players";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import type { Position, PreferredFoot } from "@prisma/client";
+import { AlertTriangle, Check, Loader2 } from "lucide-react";
+import { createPlayerSchema, type CreatePlayerInput } from "@/lib/validation";
+import { createPlayerAction, updatePlayerAction } from "@/app/actions/players";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import type { Player, Position, PreferredFoot } from "@prisma/client";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { POSITION_LABEL } from "@/components/pk/format";
 
-const POSITIONS: { value: Position; label: string }[] = [
-  { value: "GK", label: "GK — Goalkeeper" },
-  { value: "CB", label: "CB — Centre-Back" },
-  { value: "LB", label: "LB — Left-Back" },
-  { value: "RB", label: "RB — Right-Back" },
-  { value: "CDM", label: "CDM — Central Defensive Midfielder" },
-  { value: "CM", label: "CM — Central Midfielder" },
-  { value: "CAM", label: "CAM — Central Attacking Midfielder" },
-  { value: "LW", label: "LW — Left Winger" },
-  { value: "RW", label: "RW — Right Winger" },
-  { value: "ST", label: "ST — Striker" },
-  { value: "UNKNOWN", label: "UNKNOWN — Unspecified" },
-];
-
-const PREFERRED_FEET: { value: PreferredFoot; label: string }[] = [
-  { value: "RIGHT", label: "Right" },
-  { value: "LEFT", label: "Left" },
-  { value: "BOTH", label: "Both" },
-  { value: "UNKNOWN", label: "Unknown" },
-];
-
-export interface PlayerFormDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  player?: Player | null;
-  onSuccess?: (player: Player) => void;
+/** Any player-shaped object works: Prisma `Player` or the insights `PlayerIdentity`. */
+export interface EditablePlayer {
+  id: string;
+  fullName: string;
+  displayName: string | null;
+  position: Position;
+  preferredFoot: PreferredFoot;
+  squadNumber: number | null;
+  team: string | null;
+  nationality: string | null;
+  imageUrl: string | null;
+  notes: string | null;
 }
 
-export function PlayerFormDialog({
-  open,
-  onOpenChange,
-  player,
-  onSuccess,
-}: PlayerFormDialogProps) {
+export interface PlayerFormDialogProps {
+  /** Present = edit mode. */
+  player?: EditablePlayer | null;
+  /** Element that opens the dialog (uncontrolled usage). */
+  trigger?: React.ReactNode;
+  /** Controlled usage. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  onSuccess?: (player: { id: string; fullName: string }) => void;
+  /** Suggested team for new players. */
+  defaultTeam?: string | null;
+}
+
+// Laid out roughly as a pitch: attack at the top, keeper at the bottom.
+const PITCH: Position[][] = [
+  ["LW", "ST", "RW"],
+  ["CAM"],
+  ["CM", "CDM"],
+  ["LB", "CB", "RB"],
+  ["GK", "UNKNOWN"],
+];
+
+const FEET: { value: PreferredFoot; label: string }[] = [
+  { value: "LEFT", label: "Left" },
+  { value: "RIGHT", label: "Right" },
+  { value: "BOTH", label: "Both" },
+  { value: "UNKNOWN", label: "?" },
+];
+
+function Field({ label, error, children, htmlFor, className }: { label: string; error?: string; children: React.ReactNode; htmlFor?: string; className?: string }) {
+  return (
+    <div className={cn("space-y-1.5", className)}>
+      <label htmlFor={htmlFor} className="eyebrow block">{label}</label>
+      {children}
+      {error && <p className="text-xs text-loss">{error}</p>}
+    </div>
+  );
+}
+
+export function PlayerFormDialog({ player, trigger, open: openProp, onOpenChange, onSuccess, defaultTeam }: PlayerFormDialogProps) {
+  const router = useRouter();
+  const [openState, setOpenState] = React.useState(false);
+  const open = openProp ?? openState;
+  const setOpen = (o: boolean) => {
+    if (openProp === undefined) setOpenState(o);
+    onOpenChange?.(o);
+  };
   const isEdit = Boolean(player);
   const [serverError, setServerError] = React.useState<string | null>(null);
 
-  const defaultValues: CreatePlayerInput = React.useMemo(() => {
-    return {
+  const defaults = React.useMemo<CreatePlayerInput>(
+    () => ({
       fullName: player?.fullName ?? "",
       displayName: player?.displayName ?? "",
       position: player?.position ?? "UNKNOWN",
       preferredFoot: player?.preferredFoot ?? "UNKNOWN",
       squadNumber: player?.squadNumber ?? null,
-      team: player?.team ?? "",
+      team: player?.team ?? defaultTeam ?? "",
       nationality: player?.nationality ?? "",
       imageUrl: player?.imageUrl ?? "",
       notes: player?.notes ?? "",
-    };
-  }, [player]);
+    }),
+    [player, defaultTeam],
+  );
 
   const {
     register,
@@ -92,264 +102,157 @@ export function PlayerFormDialog({
     formState: { errors, isSubmitting },
   } = useForm<CreatePlayerInput>({
     resolver: zodResolver(createPlayerSchema) as any,
-    defaultValues,
+    defaultValues: defaults,
   });
 
   React.useEffect(() => {
-    reset(defaultValues);
-    setServerError(null);
-  }, [defaultValues, reset, open]);
+    if (open) {
+      reset(defaults);
+      setServerError(null);
+    }
+  }, [open, defaults, reset]);
 
   const onSubmit = async (values: CreatePlayerInput) => {
     setServerError(null);
     try {
-      if (isEdit && player) {
-        const res = await updatePlayerAction(player.id, values);
-        if (!res.success) {
-          setServerError(res.error);
-          return;
-        }
-        onOpenChange(false);
-        onSuccess?.(res.data);
-      } else {
-        const res = await createPlayerAction(values);
-        if (!res.success) {
-          setServerError(res.error);
-          return;
-        }
-        onOpenChange(false);
-        onSuccess?.(res.data);
+      const res = isEdit && player ? await updatePlayerAction(player.id, values) : await createPlayerAction(values);
+      if (!res.success) {
+        setServerError(res.error);
+        return;
       }
+      setOpen(false);
+      onSuccess?.(res.data);
+      router.refresh();
     } catch (err) {
-      setServerError(
-        err instanceof Error ? err.message : "An unexpected error occurred."
-      );
+      setServerError(err instanceof Error ? err.message : "Something went wrong.");
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[560px]">
+    <Dialog open={open} onOpenChange={setOpen}>
+      {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
+      <DialogContent className="sm:max-w-[640px]">
         <DialogHeader>
-          <DialogTitle className="font-display text-xl">
-            {isEdit ? "Edit Player" : "Add New Player"}
+          <div className="eyebrow">{isEdit ? "Player file" : "New signing"}</div>
+          <DialogTitle className="font-display text-4xl font-black uppercase leading-none">
+            {isEdit ? `Edit ${player?.displayName || player?.fullName}` : "Sign a player"}
           </DialogTitle>
-          <DialogDescription>
-            {isEdit
-              ? `Update player profile for ${player?.fullName}.`
-              : "Register a new player in your squad."}
+          <DialogDescription className="font-serif text-base italic">
+            {isEdit ? "Update their registration. Stats come from the matches you log." : "Only the name is required — the numbers come from matches."}
           </DialogDescription>
         </DialogHeader>
 
-        {serverError && (
-          <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            <span>{serverError}</span>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-2">
-          {/* Full Name & Display Name */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="fullName">
-                Full Name <span className="text-destructive">*</span>
-              </Label>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
+          <div className="grid gap-4 sm:grid-cols-[1fr_6rem]">
+            <Field label="Full name *" htmlFor="pf-fullName" error={errors.fullName?.message}>
+              <Input id="pf-fullName" autoFocus placeholder="e.g. Antonín Panenka" {...register("fullName")} />
+            </Field>
+            <Field label="Shirt no." htmlFor="pf-number" error={errors.squadNumber?.message}>
               <Input
-                id="fullName"
-                placeholder="e.g. Mateo Rossi"
-                aria-invalid={Boolean(errors.fullName)}
-                {...register("fullName")}
+                id="pf-number"
+                inputMode="numeric"
+                placeholder="–"
+                className="text-center font-display text-xl font-black"
+                {...register("squadNumber", { setValueAs: (v) => (v === "" || v === null || v === undefined ? null : Number(v)) })}
               />
-              {errors.fullName && (
-                <p className="text-xs text-destructive">
-                  {errors.fullName.message}
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="displayName">Display Name</Label>
-              <Input
-                id="displayName"
-                placeholder="e.g. Rossi"
-                {...register("displayName")}
-              />
-              {errors.displayName && (
-                <p className="text-xs text-destructive">
-                  {errors.displayName.message}
-                </p>
-              )}
-            </div>
+            </Field>
           </div>
 
-          {/* Position & Preferred Foot */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="position">Position</Label>
-              <Controller
-                control={control}
-                name="position"
-                render={({ field }) => (
-                  <Select
-                    value={field.value}
-                    onValueChange={(val) => field.onChange(val as Position)}
-                  >
-                    <SelectTrigger id="position">
-                      <SelectValue placeholder="Select position" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {POSITIONS.map((p) => (
-                        <SelectItem key={p.value} value={p.value}>
-                          {p.label}
-                        </SelectItem>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Card name" htmlFor="pf-display" error={errors.displayName?.message}>
+              <Input id="pf-display" placeholder="Shown on the card" {...register("displayName")} />
+            </Field>
+            <Field label="Team" htmlFor="pf-team" error={errors.team?.message}>
+              <Input id="pf-team" placeholder="Your club" {...register("team")} />
+            </Field>
+          </div>
+
+          <Field label="Position" error={errors.position?.message}>
+            <Controller
+              control={control}
+              name="position"
+              render={({ field }) => (
+                <div role="radiogroup" aria-label="Position" className="pitch-lines space-y-1.5 rounded-lg border bg-background/40 p-3">
+                  {PITCH.map((line, i) => (
+                    <div key={i} className="flex justify-center gap-1.5">
+                      {line.map((pos) => (
+                        <button
+                          key={pos}
+                          type="button"
+                          role="radio"
+                          aria-checked={field.value === pos}
+                          title={POSITION_LABEL[pos]}
+                          onClick={() => field.onChange(pos)}
+                          className={cn(
+                            "min-w-[3.4rem] rounded-full border px-3 py-1.5 font-mono text-[0.7rem] font-semibold uppercase tracking-[0.1em] transition-colors",
+                            field.value === pos ? "border-primary bg-primary text-primary-foreground" : "bg-card/70 text-muted-foreground hover:border-foreground/40 hover:text-foreground",
+                          )}
+                        >
+                          {pos === "UNKNOWN" ? "Any" : pos}
+                        </button>
                       ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-              {errors.position && (
-                <p className="text-xs text-destructive">
-                  {errors.position.message}
-                </p>
+                    </div>
+                  ))}
+                </div>
               )}
-            </div>
+            />
+          </Field>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="preferredFoot">Preferred Foot</Label>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Preferred foot">
               <Controller
                 control={control}
                 name="preferredFoot"
                 render={({ field }) => (
-                  <Select
-                    value={field.value}
-                    onValueChange={(val) =>
-                      field.onChange(val as PreferredFoot)
-                    }
-                  >
-                    <SelectTrigger id="preferredFoot">
-                      <SelectValue placeholder="Select foot" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PREFERRED_FEET.map((f) => (
-                        <SelectItem key={f.value} value={f.value}>
-                          {f.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div role="radiogroup" aria-label="Preferred foot" className="inline-flex rounded-full border bg-background/50 p-0.5">
+                    {FEET.map((f) => (
+                      <button
+                        key={f.value}
+                        type="button"
+                        role="radio"
+                        aria-checked={field.value === f.value}
+                        onClick={() => field.onChange(f.value)}
+                        className={cn(
+                          "rounded-full px-3 py-1.5 font-mono text-[0.68rem] uppercase tracking-[0.1em]",
+                          field.value === f.value ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
                 )}
               />
-              {errors.preferredFoot && (
-                <p className="text-xs text-destructive">
-                  {errors.preferredFoot.message}
-                </p>
-              )}
-            </div>
+            </Field>
+            <Field label="Nationality" htmlFor="pf-nat" error={errors.nationality?.message}>
+              <Input id="pf-nat" placeholder="Optional" {...register("nationality")} />
+            </Field>
           </div>
 
-          {/* Squad Number & Team */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="squadNumber">Squad Number</Label>
-              <Input
-                id="squadNumber"
-                type="number"
-                min={1}
-                max={99}
-                placeholder="1–99"
-                {...register("squadNumber", {
-                  setValueAs: (v) =>
-                    v === "" || v === null || Number.isNaN(Number(v))
-                      ? null
-                      : Number(v),
-                })}
-              />
-              {errors.squadNumber && (
-                <p className="text-xs text-destructive">
-                  {errors.squadNumber.message}
-                </p>
-              )}
+          <Field label="Photo URL" htmlFor="pf-img" error={errors.imageUrl?.message}>
+            <Input id="pf-img" placeholder="https://… (optional, shown on the card)" {...register("imageUrl")} />
+          </Field>
+
+          <Field label="Scouting notes" htmlFor="pf-notes" error={errors.notes?.message}>
+            <Textarea id="pf-notes" rows={2} placeholder="Optional" {...register("notes")} />
+          </Field>
+
+          {serverError && (
+            <div role="alert" className="flex gap-2 rounded-md border border-loss/40 bg-loss/10 p-3 text-sm text-loss">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              {serverError}
             </div>
+          )}
 
-            <div className="space-y-1.5">
-              <Label htmlFor="team">Team / Club</Label>
-              <Input
-                id="team"
-                placeholder="e.g. Panenka FC"
-                {...register("team")}
-              />
-              {errors.team && (
-                <p className="text-xs text-destructive">
-                  {errors.team.message}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Nationality & Image URL */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="nationality">Nationality</Label>
-              <Input
-                id="nationality"
-                placeholder="e.g. Argentina"
-                {...register("nationality")}
-              />
-              {errors.nationality && (
-                <p className="text-xs text-destructive">
-                  {errors.nationality.message}
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="imageUrl">Image URL (http/https)</Label>
-              <Input
-                id="imageUrl"
-                placeholder="https://example.com/avatar.jpg"
-                {...register("imageUrl")}
-              />
-              {errors.imageUrl && (
-                <p className="text-xs text-destructive">
-                  {errors.imageUrl.message}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Notes */}
-          <div className="space-y-1.5">
-            <Label htmlFor="notes">Notes</Label>
-            <Textarea
-              id="notes"
-              rows={3}
-              placeholder="Scouting reports, medical notes, or background context..."
-              {...register("notes")}
-            />
-            {errors.notes && (
-              <p className="text-xs text-destructive">
-                {errors.notes.message}
-              </p>
-            )}
-          </div>
-
-          <DialogFooter className="pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={isSubmitting}
-            >
+          <div className="flex justify-end gap-2 pt-1">
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              {isEdit ? "Save Changes" : "Create Player"}
+              {isSubmitting ? <Loader2 className="animate-spin" /> : <Check />}
+              {isEdit ? "Save player" : "Sign player"}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>
