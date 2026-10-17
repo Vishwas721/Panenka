@@ -9,6 +9,7 @@ import {
   comparePlayers,
   getMatches,
 } from "@/server/services";
+import { getPlayerInsight } from "@/server/services/insights.service";
 import {
   McpError,
   ErrorCode,
@@ -427,7 +428,10 @@ export async function executeSearchPlayers(
 export async function executeGetPlayerProfile(
   args: z.infer<typeof getPlayerProfileSchema>,
 ): Promise<CallToolResult> {
-  const player = await getPlayerById(args.playerId);
+  const [player, insight] = await Promise.all([
+    getPlayerById(args.playerId),
+    getPlayerInsight(args.playerId),
+  ]);
   if (!player) {
     return {
       content: [
@@ -528,15 +532,32 @@ export async function executeGetPlayerProfile(
     `- **Assists**: ${player.recentForm.assists} (${recentAssistsPerApp} per app)`,
     `- **Goal Contributions**: ${player.recentForm.goalContributions}`,
     "",
-    `## Match History (${player.matches.length} Total Matches)`,
   ];
+
+  if (insight && insight.profile.apps > 0) {
+    const pr = insight.profile;
+    lines.push(
+      "## Ratings, Man of the Match & Card",
+      `- **Overall (OVR)**: ${insight.ovr ?? "Unrated"} (${insight.tier.name} tier)${insight.archetype ? ` · Archetype: ${insight.archetype.name}` : ""}`,
+      `- **Attributes**: ${insight.attrs ? Object.entries(insight.attrs).map(([k, v]) => `${k} ${v}`).join(", ") : "n/a"}`,
+      `- **Average Rating**: ${pr.rating.avg ?? "-"} over ${pr.rating.rated} rated games (best ${pr.rating.best ?? "-"}, last 5 ${pr.rating.last5 ?? "-"})`,
+      `- **Man of the Match**: ${pr.motm} (${pr.perApp ? Math.round(pr.perApp.motm * 100) : 0}% of games)`,
+      `- **Record with player**: ${pr.record.wins}W ${pr.record.draws}D ${pr.record.losses}L`,
+      `- **Best streaks**: scoring ${pr.streaks.scoring.best}, G+A ${pr.streaks.contributing.best}, MOTM ${pr.streaks.motm.best}`,
+      `- **Keywords (${insight.keywords.unlocked.length})**: ${insight.keywords.signature.slice(0, 12).map((k) => `${k.name} [${k.rarity}]`).join(", ")}`,
+      "",
+    );
+  }
+
+  const perfByMatch = new Map(insight?.profile.timeline.map((t) => [t.matchId, t]) ?? []);
+  lines.push(`## Match History (${player.matches.length} Total Matches)`);
 
   if (player.matches.length === 0) {
     lines.push("No match records found.");
   } else {
     lines.push(
-      "| Date | Opponent | Score | Venue | Status | Min | Goals | Assists | Appearance |",
-      "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+      "| Date | Opponent | Score | Venue | Status | Min | Goals | Assists | Rating | MOTM | Appearance |",
+      "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     );
     for (const m of player.matches) {
       const score =
@@ -544,7 +565,7 @@ export async function executeGetPlayerProfile(
           ? `${m.match.scoreHome} - ${m.match.scoreAway}`
           : "-";
       lines.push(
-        `| ${formatDate(m.match.date)} | ${m.match.opponent} | ${score} | ${m.match.venue ?? "-"} | ${m.match.status} | ${m.minutesPlayed ?? "-"} | ${m.goals} | ${m.assists} | ${m.appearanceStatus} |`,
+        `| ${formatDate(m.match.date)} | ${m.match.opponent} | ${score} | ${m.match.venue ?? "-"} | ${m.match.status} | ${m.minutesPlayed ?? "-"} | ${m.goals} | ${m.assists} | ${perfByMatch.get(m.match.id)?.rating ?? "-"} | ${perfByMatch.get(m.match.id)?.motm ? "★" : ""} | ${m.appearanceStatus} |`,
       );
     }
   }
