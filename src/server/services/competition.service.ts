@@ -39,3 +39,20 @@ export async function getCompetitionById(
     },
   });
 }
+
+/**
+ * Creates a competition. Name + season is unique; an existing pair is returned
+ * instead of failing so the inline "new competition" flow is idempotent.
+ */
+export async function createCompetition(data: {
+  name: string;
+  season?: string | null;
+}): Promise<Competition> {
+  const name = data.name.trim();
+  const season = data.season?.trim() || null;
+  const existing = await prisma.competition.findFirst({
+    where: { name: { equals: name, mode: "insensitive" }, season },
+  });
+  if (existing) return existing;
+  return prisma.competition.create({ data: { name, season } });
+}
