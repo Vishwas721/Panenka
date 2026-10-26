@@ -95,26 +95,47 @@ Built from completed appearances, oldest first:
 - **Splits**: venue, starter/sub, competition, season (from the competition, else July–June), opponent, month, weekday.
 - **Records**: top five by match score (`rating×10 + goals×9 + assists×6 + MOTM×8`, rating defaults to 6.2 when missing), firsts, personal bests per match/month/season, bounce-backs (+2 on the previous rated game), 9+ games without G+A.
 
-## Card attributes and OVR (`src/lib/stats/attributes.ts`)
+## Overall rating (OVR) — squad-relative model (`src/lib/stats/rating-model.ts`)
 
-Seven attributes on 1–99, each shrunk toward 50 by `n / (n + 4)` so small samples can't spike:
+Modelled on how scouting departments compare players (z-scores within a position group, combined into a composite and re-standardised; e.g. SkillCorner) and on EA FC's position-weighted overall.
+
+1. **Nine per-game metrics**: match rating, goals, assists, MOTM rate, defending (`1.5 × clean-sheet rate − goals conceded per game`, games started or 60+ minutes), points per game, consistency (−rating spread), form (last-5 rating), clutch (rating + 0.3 × G+A in one-goal games).
+2. **Sample-size adjustment**: each metric is shrunk toward its group average by `k` pseudo-games (rating 4, goals/assists 6, MOTM 8, defending 5, PPG 6, consistency 5, form 2, clutch 4).
+3. **Role groups**: attackers (ST, LW, RW), midfielders (CAM, CM), defenders & DMs (CB, LB, RB, CDM), keepers. Each metric becomes a z-score against the player's own group. Group averages blend toward an eFootball-calibrated baseline (6 pseudo-players) so small groups stay stable. Defensive roles centre on a 5.7 rating, so 6.0 is decent and 6.5 is very solid, as in eFootball.
+4. **Position recipes** (weights sum to 1):
+
+| Pos | Rating | Goals | Assists | MOTM | Defending | PPG | Consistency | Form | Clutch |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| ST | .30 | .30 | .07 | .13 | – | .04 | .05 | .07 | .04 |
+| LW/RW | .30 | .19 | .17 | .13 | – | .04 | .05 | .07 | .05 |
+| CAM | .30 | .14 | .22 | .12 | – | .05 | .05 | .07 | .05 |
+| CM | .28 | .12 | .15 | .10 | .08 | .07 | .07 | .08 | .05 |
+| CDM | .30 | .05 | .09 | .11 | .18 | .10 | .08 | .05 | .04 |
+| LB/RB | .33 | .02 | .07 | .06 | .25 | .10 | .08 | .05 | .04 |
+| CB | .35 | – | – | .05 | .30 | .10 | .10 | .05 | .05 |
+| GK | .35 | – | – | .05 | .33 | .10 | .09 | .04 | .04 |
+
+   CDM is 25% output (goals, assists, MOTM) and 75% rating/defending; CB and GK use no goals or assists.
+5. **Composite** = Σ w·z / √Σw², pulled toward −0.6 ("unproven") by `apps / (apps + 8)` so a hot streak has to be sustained.
+6. **Scale**: composites are re-standardised across players with 3+ games, then `OVR = 73 + 24·tanh(z / 2.4)`: squad average ≈ 73, +1 SD ≈ 82, +2.5 SD ≈ 92, floor 35, cap 99.
+
+The player page shows this breakdown under "How the overall is built".
+
+## Card attributes
 
 | Key | Name | Source |
 | --- | --- | --- |
-| FIN | Finishing | goals per appearance |
-| CRE | Creativity | assists per appearance |
-| DEF | Defending | 35% clean-sheet rate, 30% goals conceded per game, 35% rating (games started or 60+ minutes) |
-| IMP | Impact | 60% MOTM rate, 40% role-adjusted output |
-| CON | Consistency | 55% share of games at or above min(6.5, own average), 45% tightness of spread |
-| FRM | Form | 75% last-5 rating, 25% recent role-adjusted output |
-| CLU | Clutch | 65% rating, 35% role-adjusted output in games decided by ≤ 1 goal |
+| FIN | Finishing | absolute curve on sample-adjusted goals per game: `35 + 64·(1 − e^(−2.8·rate))`, rate = (goals + 1) / (apps + 10) |
+| CRE | Creativity | same with assists, steepness 3.5 |
+| DEF | Defending | 75% defending metric (squad-wide) + 25% rating vs role peers |
+| IMP | Impact | 55% MOTM rate + 45% rating, vs role peers |
+| CON | Consistency | 60% rating spread + 40% rating, vs role peers |
+| FRM | Form | last-5 rating vs role peers |
+| CLU | Clutch | rating and G+A in one-goal games vs role peers |
 
-### Positional fairness
+Relative attributes are re-standardised across the squad and mapped with `70 + 27·tanh(z / 2.2)`. GK, CB, LB, RB and CDM cards show DEF in place of FIN.
 
-- **Role-adjusted output** compares G+A per game with the position's normal rate (ST 0.75, wingers 0.65, CAM 0.60, CM 0.32, CDM/full-backs ~0.17, CB 0.08, GK floor 0.08). Meeting the role's rate scores about 70; a quiet game scores 40, not zero, because quiet games are normal for many roles.
-- **Cards show the six attributes that matter for the role.** GK, CB, LB, RB and CDM show DEF in place of FIN.
-- **OVR weights are set per position.** Attackers lean on FIN/CRE; CDM, full-backs, CBs and keepers lean on rating, consistency and DEF, and FIN carries no weight.
-- **Rating scale**: 5.0→42, 6.0→58, 6.5→64, 7.0→70, 8.0→82, 9.0→92, 10→99, so an ordinary job-done game isn't treated as poor.
+**Rating colours** follow eFootball bands: < 5.5 red, 5.5 amber, 6.0 neutral, 6.5 green, 7.0 teal, 8.0 orchid, 9.0 gold.
 
 **Tiers**: Grassroots < 60 ≤ Academy < 69 ≤ First Team < 77 ≤ Elite < 84 ≤ World Class < 90 ≤ Panenka.
 
