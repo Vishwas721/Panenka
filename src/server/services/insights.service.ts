@@ -13,7 +13,7 @@ import {
   type Keyword,
   type KeywordResult,
 } from "@/lib/stats/keywords";
-import { buildRatingModel, ratePlayer, type ComponentZ } from "@/lib/stats/rating-model";
+import { buildRatingModel, rateBestPosition, type ComponentZ, type PositionRating } from "@/lib/stats/rating-model";
 import type { Position, PreferredFoot } from "@prisma/client";
 
 export interface PlayerIdentity {
@@ -21,6 +21,8 @@ export interface PlayerIdentity {
   fullName: string;
   displayName: string | null;
   position: Position;
+  /** Extra positions set by the user. */
+  altPositions: Position[];
   preferredFoot: PreferredFoot;
   squadNumber: number | null;
   team: string | null;
@@ -37,7 +39,14 @@ export interface PlayerInsight {
   attrs: Attributes | null;
   ovr: number | null;
   /** How the overall was built: standardised score and per-metric contributions. */
-  rating: { z: number | null; breakdown: ComponentZ[]; squadSize: number };
+  rating: {
+    z: number | null;
+    breakdown: ComponentZ[];
+    squadSize: number;
+    /** Best-fit position the overall is taken from (may differ from the card position). */
+    position: string;
+    byPosition: PositionRating[];
+  };
   tier: CardTier;
   archetype: ReturnType<typeof archetype>;
   keywords: KeywordResult;
@@ -105,6 +114,7 @@ function identity(row: PlayerRow): PlayerIdentity {
     fullName: row.fullName,
     displayName: row.displayName,
     position: row.position,
+    altPositions: row.altPositions,
     preferredFoot: row.preferredFoot,
     squadNumber: row.squadNumber,
     team: row.team,
@@ -120,11 +130,19 @@ function buildInsights(rows: PlayerRow[]): PlayerInsight[] {
   const profiled = rows.map((row) => ({ row, profile: buildProfile(toRecords(row)) }));
   // One model per squad: active players define what "average" means for each role.
   const model = buildRatingModel(
-    profiled.filter((x) => !x.row.archivedAt).map((x) => ({ id: x.row.id, position: x.row.position, profile: x.profile })),
+    profiled
+      .filter((x) => !x.row.archivedAt)
+      .map((x) => ({ id: x.row.id, position: x.row.position, altPositions: x.row.altPositions, profile: x.profile })),
   );
   const base = profiled.map(({ row, profile }) => {
-    const rated = ratePlayer(model, profile, row.position);
-    return { row, profile, attrs: rated.attrs, ovr: rated.ovr, rating: { z: rated.z, breakdown: rated.breakdown, squadSize: model.squadSize } };
+    const rated = rateBestPosition(model, profile, row.position, row.altPositions);
+    return {
+      row,
+      profile,
+      attrs: rated.attrs,
+      ovr: rated.ovr,
+      rating: { z: rated.z, breakdown: rated.breakdown, squadSize: model.squadSize, position: rated.position, byPosition: rated.byPosition },
+    };
   });
   const squad = squadKeywords(
     base.filter((b) => !b.row.archivedAt).map((b) => ({ id: b.row.id, profile: b.profile, ovr: b.ovr })),
@@ -136,8 +154,8 @@ function buildInsights(rows: PlayerRow[]): PlayerInsight[] {
     ovr,
     rating,
     tier: cardTier(ovr),
-    archetype: archetype(attrs, row.position),
-    keywords: evaluateKeywords({ profile, attrs, ovr, position: row.position, squad: squad.get(row.id) ?? [] }),
+    archetype: archetype(attrs, rating.position),
+    keywords: evaluateKeywords({ profile, attrs, ovr, position: rating.position, squad: squad.get(row.id) ?? [] }),
   }));
 }
 

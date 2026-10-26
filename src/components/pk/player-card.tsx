@@ -11,7 +11,10 @@ export interface PlayerCardData {
   id: string;
   fullName: string;
   displayName: string | null;
+  /** Position the card is rated at (best fit). */
   position: string;
+  /** Position on the original game card, when different. */
+  cardPosition?: string;
   squadNumber: number | null;
   imageUrl: string | null;
   nationality?: string | null;
@@ -110,6 +113,11 @@ export function PlayerCard({
             </span>
             <span className="mt-[0.2em] font-display font-extrabold uppercase tracking-[0.08em]" style={{ fontSize: "1.45em" }}>
               {POSITION_SHORT(data.position)}
+              {data.cardPosition && data.cardPosition !== data.position && (
+                <span className="pcard-muted ml-[0.35em] font-mono font-medium tracking-[0.1em]" style={{ fontSize: "0.42em" }} title={`Card position: ${data.cardPosition}`}>
+                  CARD {POSITION_SHORT(data.cardPosition)}
+                </span>
+              )}
             </span>
             <span className="pcard-rule my-[0.45em] h-px w-[2.2em]" />
             <span className="pcard-accent font-mono font-semibold uppercase tracking-[0.18em]" style={{ fontSize: "0.68em" }}>
