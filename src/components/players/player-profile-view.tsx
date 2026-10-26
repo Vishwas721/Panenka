@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowDownRight, ArrowUpRight, Minus, Star, Flame } from "luc
 import type { PlayerInsightDetail } from "@/server/services/insights.service";
 import type { SplitLine, TimelinePoint } from "@/lib/stats/profile";
 import { ATTRIBUTE_META, cardKeys } from "@/lib/stats/attributes";
+import { roleGroup } from "@/lib/stats/rating-model";
 import { FAMILY_LABELS, KEYWORD_CATALOGUE, RARITIES, rarityRank, type Family, type Keyword } from "@/lib/stats/keywords";
 import { cn } from "@/lib/utils";
 import { PlayerCard } from "@/components/pk/player-card";
@@ -268,9 +269,15 @@ function Overview({ insight }: { insight: P }) {
         </section>
       </div>
 
+      {/* OVR breakdown */}
+      <section>
+        <SectionHeading index="E" title="How the overall is built" note={`vs other ${ROLE_PEERS[roleGroup(insight.player.position)]}`} />
+        <OvrBreakdown insight={insight} />
+      </section>
+
       {/* Streaks */}
       <section>
-        <SectionHeading index="E" title="Streaks" note="current run vs best ever" />
+        <SectionHeading index="F" title="Streaks" note="current run vs best ever" />
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-9">
           {streaks.map(({ label, s, tone }) => (
             <div key={label} className={cn("panel p-4", s.current > 0 && s.current === s.best && s.best >= 2 && "border-foreground/30")}>
@@ -288,7 +295,7 @@ function Overview({ insight }: { insight: P }) {
       {/* Milestones + next keywords */}
       <div className="grid gap-10 lg:grid-cols-2">
         <section>
-          <SectionHeading index="F" title="Next milestones" />
+          <SectionHeading index="G" title="Next milestones" />
           <div className="panel divide-y">
             {p.milestones.map((m) => (
               <div key={m.metric} className="flex items-center gap-4 p-4">
@@ -305,10 +312,73 @@ function Overview({ insight }: { insight: P }) {
           </div>
         </section>
         <section>
-          <SectionHeading index="G" title="Almost unlocked" note="keywords within reach" />
+          <SectionHeading index="H" title="Almost unlocked" note="keywords within reach" />
           <NextUnlocks insight={insight} />
         </section>
       </div>
+    </div>
+  );
+}
+
+const ROLE_PEERS = { ATT: "attackers", MID: "midfielders", DEF: "defenders & DMs", GK: "keepers" } as const;
+
+/** Standard normal CDF, for turning a z-score into "better than X% of peers". */
+function pctOf(z: number) {
+  const t = 1 / (1 + 0.2316419 * Math.abs(z));
+  const d = 0.3989423 * Math.exp((-z * z) / 2);
+  const p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+  return z > 0 ? 1 - p : p;
+}
+
+function OvrBreakdown({ insight }: { insight: P }) {
+  const { breakdown, z, squadSize } = insight.rating;
+  const rows = [...breakdown].sort((a, b) => b.weight - a.weight);
+  return (
+    <div className="panel p-5 sm:p-6">
+      <p className="mb-5 max-w-3xl text-sm text-muted-foreground">
+        Each number is compared with other {ROLE_PEERS[roleGroup(insight.player.position)]} in your squad
+        {squadSize > 0 ? ` (${squadSize} players with 3+ games)` : ""}, adjusted for how many games it&apos;s based on, then weighted by the{" "}
+        <b className="text-foreground">{insight.player.position === "UNKNOWN" ? "utility" : insight.player.position}</b> recipe.
+        {z !== null && (
+          <>
+            {" "}Overall standing: <b className="text-foreground">{z >= 0 ? "+" : ""}{z.toFixed(2)} SD</b> from the squad average (≈ better than{" "}
+            <b className="text-foreground">{Math.round(pctOf(z) * 100)}%</b>).
+          </>
+        )}
+      </p>
+      <div className="divide-y">
+        {rows.map((c) => {
+          const zc = Math.max(-3, Math.min(3, c.z));
+          const width = (Math.abs(zc) / 3) * 50;
+          return (
+            <div key={c.metric} className="grid grid-cols-[minmax(0,1fr)_3rem] items-center gap-x-4 gap-y-1.5 py-3 sm:grid-cols-[13rem_3.5rem_minmax(0,1fr)_5rem]">
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold">{c.label}</div>
+                <div className="font-mono text-[0.65rem] text-muted-foreground">{c.value === null ? "no data yet" : `${fmtNum(c.value)} · ${c.games} games`}</div>
+              </div>
+              <div className="text-right font-display text-xl font-extrabold tabular-nums sm:text-left">{Math.round(c.weight * 100)}%</div>
+              <div className="relative col-span-2 h-2.5 rounded-full bg-foreground/[0.06] sm:col-span-1">
+                <span className="absolute inset-y-0 left-1/2 w-px bg-foreground/30" />
+                <span
+                  className="absolute inset-y-0 rounded-full"
+                  style={{
+                    left: zc >= 0 ? "50%" : `${50 - width}%`,
+                    width: `${width}%`,
+                    backgroundColor: `hsl(var(${zc >= 0 ? "--win" : "--loss"}))`,
+                  }}
+                />
+              </div>
+              <div className="hidden text-right font-mono text-xs sm:block">
+                <span className={c.z >= 0 ? "text-win" : "text-loss"}>{c.z >= 0 ? "+" : ""}{c.z.toFixed(2)}</span>
+                <span className="ml-1 text-muted-foreground">{Math.round(pctOf(c.z) * 100)}%</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <p className="mt-4 font-mono text-[0.65rem] uppercase tracking-wider text-muted-foreground">
+        Weight = share of the overall · bar = standard deviations vs role peers · % = share of peers beaten
+      </p>
     </div>
   );
 }
