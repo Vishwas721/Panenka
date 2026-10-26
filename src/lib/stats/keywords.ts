@@ -537,7 +537,7 @@ const FEATS: Feat[] = [
 const ARCHETYPE_NAMES = [
   "Complete Forward", "Talisman", "Clinical Machine", "Hot-Streak Hitman", "Big-Game Assassin",
   "Conductor", "Metronome Maestro", "Creative Spark", "Decisive Architect", "Lighthouse",
-  "Man of the Moment", "Hero Ball", "Steady Climber", "Ice Veins", "Rising Closer",
+  "Driving Force", "Hero Ball", "Steady Climber", "Ice Veins", "Rising Closer",
   "Ball-Playing Defender", "Defensive Leader", "Brick Wall", "Rising Rock", "Last Line",
 ];
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");

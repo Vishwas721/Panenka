@@ -2,8 +2,6 @@ import { prisma } from "@/server/db/client";
 import { didAppear } from "@/lib/validation";
 import { buildProfile, teamScore, type MatchRecord, type PlayerProfile } from "@/lib/stats/profile";
 import {
-  computeAttributes,
-  computeOverall,
   cardTier,
   archetype,
   type Attributes,
@@ -15,6 +13,7 @@ import {
   type Keyword,
   type KeywordResult,
 } from "@/lib/stats/keywords";
+import { buildRatingModel, ratePlayer, type ComponentZ } from "@/lib/stats/rating-model";
 import type { Position, PreferredFoot } from "@prisma/client";
 
 export interface PlayerIdentity {
@@ -37,6 +36,8 @@ export interface PlayerInsight {
   profile: PlayerProfile;
   attrs: Attributes | null;
   ovr: number | null;
+  /** How the overall was built: standardised score and per-metric contributions. */
+  rating: { z: number | null; breakdown: ComponentZ[]; squadSize: number };
   tier: CardTier;
   archetype: ReturnType<typeof archetype>;
   keywords: KeywordResult;
@@ -116,20 +117,24 @@ function identity(row: PlayerRow): PlayerIdentity {
 }
 
 function buildInsights(rows: PlayerRow[]): PlayerInsight[] {
-  const base = rows.map((row) => {
-    const profile = buildProfile(toRecords(row));
-    const attrs = computeAttributes(profile, row.position);
-    const ovr = computeOverall(profile, attrs, row.position);
-    return { row, profile, attrs, ovr };
+  const profiled = rows.map((row) => ({ row, profile: buildProfile(toRecords(row)) }));
+  // One model per squad: active players define what "average" means for each role.
+  const model = buildRatingModel(
+    profiled.filter((x) => !x.row.archivedAt).map((x) => ({ id: x.row.id, position: x.row.position, profile: x.profile })),
+  );
+  const base = profiled.map(({ row, profile }) => {
+    const rated = ratePlayer(model, profile, row.position);
+    return { row, profile, attrs: rated.attrs, ovr: rated.ovr, rating: { z: rated.z, breakdown: rated.breakdown, squadSize: model.squadSize } };
   });
   const squad = squadKeywords(
     base.filter((b) => !b.row.archivedAt).map((b) => ({ id: b.row.id, profile: b.profile, ovr: b.ovr })),
   );
-  return base.map(({ row, profile, attrs, ovr }) => ({
+  return base.map(({ row, profile, attrs, ovr, rating }) => ({
     player: identity(row),
     profile,
     attrs,
     ovr,
+    rating,
     tier: cardTier(ovr),
     archetype: archetype(attrs, row.position),
     keywords: evaluateKeywords({ profile, attrs, ovr, position: row.position, squad: squad.get(row.id) ?? [] }),

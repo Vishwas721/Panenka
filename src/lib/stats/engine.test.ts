@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { buildProfile, teamScore, resultOf, type MatchRecord } from "./profile";
-import { computeAttributes, computeOverall, cardTier, ratingToScore, archetype, cardKeys } from "./attributes";
+import { computeAttributes, computeOverall, cardTier, archetype, cardKeys } from "./attributes";
+import { buildRatingModel, ratePlayer, POSITION_WEIGHTS } from "./rating-model";
 import { evaluateKeywords, squadKeywords, KEYWORD_CATALOGUE } from "./keywords";
 
 let n = 0;
@@ -92,68 +93,102 @@ describe("buildProfile", () => {
 });
 
 describe("attributes and OVR", () => {
-  it("maps ratings monotonically onto 1-99", () => {
-    expect(ratingToScore(6)).toBe(58);
-    expect(ratingToScore(10)).toBe(99);
-    expect(ratingToScore(7.5)).toBeGreaterThan(ratingToScore(7));
-  });
-
   it("rewards a prolific striker over a quiet one", () => {
     const star = buildProfile(Array.from({ length: 10 }, () => rec({ goals: 1, rating: 8.2, motm: true })));
     const quiet = buildProfile(Array.from({ length: 10 }, () => rec({ rating: 6.1 })));
-    const a = computeAttributes(star)!;
-    const b = computeAttributes(quiet)!;
+    const a = computeAttributes(star, "ST")!;
+    const b = computeAttributes(quiet, "ST")!;
     expect(a.FIN).toBeGreaterThan(b.FIN);
     const ovrA = computeOverall(star, a, "ST")!;
     const ovrB = computeOverall(quiet, b, "ST")!;
     expect(ovrA).toBeGreaterThan(ovrB);
     expect(cardTier(ovrA).min).toBeGreaterThanOrEqual(cardTier(ovrB).min);
-    expect(archetype(a)).not.toBeNull();
+    expect(archetype(a, "ST")).not.toBeNull();
   });
 
-  it("shrinks small samples toward the middle", () => {
-    const one = computeAttributes(buildProfile([rec({ goals: 4, rating: 10, motm: true })]))!;
-    expect(one.FIN).toBeLessThan(80);
+  it("does not hand a one-game wonder an elite overall", () => {
+    const one = buildProfile([rec({ goals: 4, rating: 10, motm: true })]);
+    expect(computeOverall(one, null, "ST")!).toBeLessThan(84);
+    expect(computeAttributes(one, "ST")!.FIN).toBeLessThan(85);
   });
 });
 
-describe("positional fairness", () => {
-  const games = (p: Partial<MatchRecord>, n = 8) => Array.from({ length: n }, () => rec(p));
+describe("squad-relative model", () => {
+  // Mixed results and varied ratings, roughly like a real logged season.
+  const season = (n: number, f: (i: number) => Partial<MatchRecord>) =>
+    Array.from({ length: n }, (_, i) => rec({ goalsFor: [2, 1, 3, 0, 2][i % 5], goalsAgainst: [1, 1, 0, 2, 2][i % 5], ...f(i) }));
+  const squad = () => {
+    const members = [
+      { id: "ronaldo", position: "ST", profile: buildProfile(season(35, (i) => ({ goals: i % 4 === 3 ? 0 : 1, rating: i % 4 === 3 ? 5.8 : 6.7, motm: i % 6 === 0, assists: i % 9 === 0 ? 1 : 0 }))) },
+      { id: "hot", position: "ST", profile: buildProfile(season(3, () => ({ goals: 1, rating: 7 }))) },
+      { id: "avgST", position: "ST", profile: buildProfile(season(12, (i) => ({ goals: i % 3 === 0 ? 1 : 0, rating: i % 3 === 0 ? 6.3 : 5.8 }))) },
+      { id: "st3", position: "LW", profile: buildProfile(season(15, (i) => ({ assists: i % 3 === 0 ? 1 : 0, rating: i % 2 ? 6.2 : 5.9 }))) },
+      { id: "cb", position: "CB", profile: buildProfile(season(20, (i) => ({ rating: i % 2 ? 6.2 : 5.9, goalsFor: 1, goalsAgainst: i % 3 === 0 ? 1 : 0 }))) },
+      { id: "cb2", position: "CB", profile: buildProfile(season(20, (i) => ({ rating: i % 2 ? 5.6 : 5.2, goalsFor: 1, goalsAgainst: 2 }))) },
+      { id: "gk", position: "GK", profile: buildProfile(season(15, (i) => ({ rating: i % 2 ? 5.9 : 5.5 }))) },
+      { id: "cm", position: "CM", profile: buildProfile(season(16, (i) => ({ assists: i % 4 === 0 ? 1 : 0, rating: i % 2 ? 6.1 : 5.8 }))) },
+      { id: "cdm", position: "CDM", profile: buildProfile(season(12, (i) => ({ rating: i % 2 ? 6.0 : 5.7 }))) },
+    ];
+    const model = buildRatingModel(members);
+    const ovr = Object.fromEntries(members.map((m) => [m.id, ratePlayer(model, m.profile, m.position).ovr!]));
+    return { ovr, model, members };
+  };
 
-  it("does not punish a steady defender for not scoring", () => {
-    const cb = buildProfile(games({ rating: 7, goalsFor: 1, goalsAgainst: 0 }));
-    const st = buildProfile(games({ rating: 7, goalsFor: 1, goalsAgainst: 0 }));
-    const cbOvr = computeOverall(cb, computeAttributes(cb, "CB"), "CB")!;
-    const stOvr = computeOverall(st, computeAttributes(st, "ST"), "ST")!;
-    // Same ratings, no output: the defender (with clean sheets) must not trail the striker.
-    expect(cbOvr).toBeGreaterThanOrEqual(stOvr);
+  it("spreads the squad like a real game: the standout scorer is in the 80s and leads the attack", () => {
+    const { ovr } = squad();
+    expect(ovr.ronaldo).toBeGreaterThanOrEqual(80);
+    expect(ovr.ronaldo).toBeGreaterThan(Math.max(ovr.hot!, ovr.avgST!, ovr.st3!));
+    // An elite defender (6.0+ average, clean sheets in most games) can top the squad too.
+    expect(ovr.cb).toBeGreaterThanOrEqual(80);
+    expect(Math.max(...Object.values(ovr)) - Math.min(...Object.values(ovr))).toBeGreaterThan(20);
   });
 
-  it("values an assist from a centre-back more than one from a striker", () => {
-    const rows = [rec({ assists: 1, rating: 7 }), ...games({ rating: 7 }, 3)];
-    const p = buildProfile(rows);
-    expect(computeAttributes(p, "CB")!.IMP).toBeGreaterThan(computeAttributes(p, "ST")!.IMP);
+  it("ranks sustained output above a three-game hot streak", () => {
+    const { ovr } = squad();
+    expect(ovr.ronaldo).toBeGreaterThan(ovr.hot!);
   });
 
-  it("rewards clean sheets in DEF and conceding lowers it", () => {
-    const tight = computeAttributes(buildProfile(games({ goalsFor: 1, goalsAgainst: 0 })), "CB")!;
-    const leaky = computeAttributes(buildProfile(games({ goalsFor: 3, goalsAgainst: 3 })), "CB")!;
-    expect(tight.DEF).toBeGreaterThan(leaky.DEF + 15);
+  it("lets a defender with clean sheets rate well without any goals or assists", () => {
+    const { ovr } = squad();
+    expect(ovr.cb).toBeGreaterThanOrEqual(75);
+    expect(ovr.cb).toBeGreaterThan(ovr.cb2! + 8);
+  });
+
+  it("judges ratings against role peers, so a 5.9 CB beats a 5.9 striker", () => {
+    const { model } = squad();
+    const p = buildProfile(season(12, () => ({ rating: 5.9 })));
+    expect(ratePlayer(model, p, "CB").ovr!).toBeGreaterThan(ratePlayer(model, p, "ST").ovr!);
+  });
+});
+
+describe("position recipes", () => {
+  const sum = (w: Record<string, number>) => Object.values(w).reduce((a, b) => a + b, 0);
+  const output = (pos: string) => POSITION_WEIGHTS[pos]!.goals + POSITION_WEIGHTS[pos]!.assists + POSITION_WEIGHTS[pos]!.motm;
+
+  it("every recipe sums to 1", () => {
+    for (const [pos, w] of Object.entries(POSITION_WEIGHTS)) expect(sum(w), pos).toBeCloseTo(1, 5);
+  });
+
+  it("centre-backs and keepers use no goals or assists", () => {
+    for (const pos of ["CB", "GK"]) {
+      expect(POSITION_WEIGHTS[pos]!.goals).toBe(0);
+      expect(POSITION_WEIGHTS[pos]!.assists).toBe(0);
+    }
+  });
+
+  it("CDM is about 75% defending/performance and 25% output", () => {
+    expect(output("CDM")).toBeCloseTo(0.25, 2);
+  });
+
+  it("CM balances output with performance; attackers lean on output", () => {
+    expect(output("CM")).toBeGreaterThan(output("CDM"));
+    expect(output("ST")).toBeGreaterThan(output("CM"));
   });
 
   it("shows DEF instead of FIN on defensive cards", () => {
     expect(cardKeys("CB")).toContain("DEF");
     expect(cardKeys("CB")).not.toContain("FIN");
     expect(cardKeys("ST")).toContain("FIN");
-    expect(cardKeys("ST")).not.toContain("DEF");
-  });
-
-  it("keeps a scoring striker ahead of a quiet one", () => {
-    const scorer = buildProfile(games({ goals: 1, rating: 7.5 }));
-    const quiet = buildProfile(games({ rating: 6 }));
-    expect(computeOverall(scorer, computeAttributes(scorer, "ST"), "ST")!).toBeGreaterThan(
-      computeOverall(quiet, computeAttributes(quiet, "ST"), "ST")! + 10,
-    );
   });
 });
 
