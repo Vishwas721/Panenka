@@ -119,7 +119,9 @@ Modelled on how scouting departments compare players (z-scores within a position
 5. **Composite** = Σ w·z / √Σw², pulled toward −0.6 ("unproven") by `apps / (apps + 8)` so a hot streak has to be sustained.
 6. **Scale**: composites are re-standardised across players with 3+ games, then `OVR = 73 + 24·tanh(z / 2.4)`: squad average ≈ 73, +1 SD ≈ 82, +2.5 SD ≈ 92, floor 35, cap 99.
 
-The player page shows this breakdown under "How the overall is built".
+7. **Best-fit position**: game cards list one position, but players are often used elsewhere (a CF played at CAM). Each player is rated at their card position, its natural alternatives (ST↔CAM/LW/RW, LW/RW↔ST/CAM, CAM↔CM/ST/wings, CM↔CAM/CDM, CDM↔CM/CB, CB↔CDM, LB/RB↔other full-back/CB) and any "also plays" positions set on the player. The overall is the best of these. Only the recipe changes between positions: numbers are always compared with the peer group of the card position, so re-labelling can't game a softer baseline, and attackers are never judged on the defensive scale unless you add a defensive position yourself.
+
+The player page shows this breakdown under "How the overall is built", plus the rating at every candidate position.
 
 ## Card attributes
 
