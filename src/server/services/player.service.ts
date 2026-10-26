@@ -363,6 +363,7 @@ export async function createPlayer(data: CreatePlayerInput): Promise<Player> {
       fullName: data.fullName.trim(),
       displayName: data.displayName?.trim() || null,
       position: data.position,
+      altPositions: (data.altPositions ?? []).filter((p) => p !== data.position),
       preferredFoot: data.preferredFoot,
       squadNumber: data.squadNumber ?? null,
       team: data.team?.trim() || null,
@@ -409,6 +410,9 @@ export async function updatePlayer(
         ? { displayName: data.displayName?.trim() || null }
         : {}),
       ...(data.position !== undefined ? { position: data.position } : {}),
+      ...(data.altPositions !== undefined
+        ? { altPositions: data.altPositions.filter((p) => p !== (data.position ?? existing.position)) }
+        : {}),
       ...(data.preferredFoot !== undefined
         ? { preferredFoot: data.preferredFoot }
         : {}),

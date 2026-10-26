@@ -71,6 +71,8 @@ model Player {
   fullName     String
   displayName  String?
   position     Position      @default(UNKNOWN)
+  /// Other positions the player is used in (the card position stays in `position`).
+  altPositions Position[]    @default([])
   preferredFoot PreferredFoot @default(UNKNOWN)
   squadNumber  Int?
   team         String?

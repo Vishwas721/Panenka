@@ -19,6 +19,8 @@ export const createPlayerSchema = z.object({
     .optional()
     .or(z.literal("")),
   position: positionEnum.default("UNKNOWN"),
+  /** Other positions the player is used in, besides the card position. */
+  altPositions: z.array(positionEnum.exclude(["UNKNOWN"])).max(6, "Pick up to 6 extra positions").optional(),
   preferredFoot: preferredFootEnum.default("UNKNOWN"),
   squadNumber: z
     .number()
