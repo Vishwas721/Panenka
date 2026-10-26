@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { buildProfile, teamScore, resultOf, type MatchRecord } from "./profile";
 import { computeAttributes, computeOverall, cardTier, archetype, cardKeys } from "./attributes";
-import { buildRatingModel, ratePlayer, POSITION_WEIGHTS } from "./rating-model";
+import { buildRatingModel, ratePlayer, rateBestPosition, candidatePositions, roleGroup, POSITION_WEIGHTS } from "./rating-model";
 import { evaluateKeywords, squadKeywords, KEYWORD_CATALOGUE } from "./keywords";
 
 let n = 0;
@@ -158,6 +158,38 @@ describe("squad-relative model", () => {
     const { model } = squad();
     const p = buildProfile(season(12, () => ({ rating: 5.9 })));
     expect(ratePlayer(model, p, "CB").ovr!).toBeGreaterThan(ratePlayer(model, p, "ST").ovr!);
+  });
+});
+
+const REFERENCE_MODEL_FOR_TESTS = buildRatingModel([]);
+
+describe("best-fit position", () => {
+  const season = (n: number, f: (i: number) => Partial<MatchRecord>) =>
+    Array.from({ length: n }, (_, i) => rec({ goalsFor: [2, 1, 3, 0, 2][i % 5], goalsAgainst: [1, 1, 0, 2, 2][i % 5], ...f(i) }));
+  // A "Rooney": striker card, but a creator — few goals, lots of assists.
+  const creator = buildProfile(season(30, (i) => ({ goals: i % 5 === 0 ? 1 : 0, assists: i % 2 === 0 ? 1 : 0, rating: i % 2 ? 6.3 : 6.0 })));
+
+  it("rates an assist-heavy striker card higher at CAM than at ST", () => {
+    const r = rateBestPosition(REFERENCE_MODEL_FOR_TESTS, creator, "ST");
+    expect(r.position).not.toBe("ST");
+    const st = r.byPosition.find((b) => b.position === "ST")!.ovr;
+    expect(r.ovr!).toBeGreaterThan(st);
+  });
+
+  it("never lets an attacker be rated on the defensive scale", () => {
+    for (const pos of ["ST", "LW", "RW", "CAM"]) {
+      for (const c of candidatePositions(pos)) expect(roleGroup(c), `${pos}->${c}`).not.toBe("DEF");
+    }
+    expect(candidatePositions("ST", ["CB"])).toContain("CB"); // only when the user says so
+  });
+
+  it("re-labelling only changes the recipe, not the peers", () => {
+    const p = buildProfile(season(20, (i) => ({ rating: i % 2 ? 6.1 : 5.9 })));
+    const asCM = ratePlayer(REFERENCE_MODEL_FOR_TESTS, p, "CM", "CM").ovr!;
+    const asCDMwithCMpeers = ratePlayer(REFERENCE_MODEL_FOR_TESTS, p, "CDM", "CM").ovr!;
+    const asCDMwithDefPeers = ratePlayer(REFERENCE_MODEL_FOR_TESTS, p, "CDM", "CDM").ovr!;
+    expect(Math.abs(asCDMwithCMpeers - asCM)).toBeLessThanOrEqual(6);
+    expect(asCDMwithDefPeers).toBeGreaterThan(asCDMwithCMpeers); // what best-fit deliberately avoids
   });
 });
 

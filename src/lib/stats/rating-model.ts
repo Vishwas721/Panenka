@@ -36,6 +36,32 @@ export function roleGroup(position: string): RoleGroup {
   return "MID";
 }
 
+/**
+ * Natural alternative positions for each card position, like a game card's
+ * secondary positions. Players are rated at all of these and their best fit counts.
+ * Alternatives never cross from attack into defence, so an attacker's ratings are
+ * never judged on the defensive scale (and vice versa).
+ */
+export const COMPATIBLE_POSITIONS: Record<string, string[]> = {
+  ST: ["CAM", "LW", "RW"],
+  LW: ["RW", "ST", "CAM"],
+  RW: ["LW", "ST", "CAM"],
+  CAM: ["CM", "ST", "LW", "RW"],
+  CM: ["CAM", "CDM"],
+  CDM: ["CM", "CB"],
+  CB: ["CDM"],
+  LB: ["RB", "CB"],
+  RB: ["LB", "CB"],
+  GK: [],
+  UNKNOWN: ["CM", "CAM", "ST"],
+};
+
+/** Card position first, then its natural alternatives, then any the user added. */
+export function candidatePositions(position: string, extra: readonly string[] = []): string[] {
+  const out = [position, ...(COMPATIBLE_POSITIONS[position] ?? []), ...extra];
+  return [...new Set(out)].filter((p) => p in POSITION_WEIGHTS && p !== "UNKNOWN");
+}
+
 export type MetricKey = "rating" | "goals" | "assists" | "motm" | "defence" | "ppg" | "consistency" | "form" | "clutch";
 
 export const METRIC_KEYS: MetricKey[] = ["rating", "goals", "assists", "motm", "defence", "ppg", "consistency", "form", "clutch"];
@@ -137,6 +163,8 @@ export interface ModelMember {
   id: string;
   position: string;
   profile: PlayerProfile;
+  /** Extra positions the player is used in (on top of the natural alternatives). */
+  altPositions?: readonly string[];
 }
 
 export interface RatingModel {
@@ -174,8 +202,14 @@ export interface ComponentZ {
   games: number;
 }
 
-function components(model: Pick<RatingModel, "groups">, p: PlayerProfile, position: string): ComponentZ[] {
-  const g = model.groups[roleGroup(position)];
+/**
+ * `position` picks the recipe (weights); `peerPosition` picks who the numbers are
+ * compared against. They differ when rating a player at an alternative position:
+ * the recipe changes, but the comparison stays with the peers whose rating scale
+ * produced the numbers, so re-labelling a player can't game a lower baseline.
+ */
+function components(model: Pick<RatingModel, "groups">, p: PlayerProfile, position: string, peerPosition = position): ComponentZ[] {
+  const g = model.groups[roleGroup(peerPosition)];
   const raw = rawMetrics(p);
   const w = POSITION_WEIGHTS[position] ?? POSITION_WEIGHTS.UNKNOWN!;
   return METRIC_KEYS.map((m) => ({
@@ -199,7 +233,8 @@ function compositeOf(comps: ComponentZ[], apps: number): number {
 
 // ----- card attributes -----
 
-function rawAttributes(model: Pick<RatingModel, "groups">, p: PlayerProfile, position: string): Record<AttributeKey, number> {
+function rawAttributes(model: Pick<RatingModel, "groups">, p: PlayerProfile, peerPosition: string): Record<AttributeKey, number> {
+  const position = peerPosition;
   const raw = rawMetrics(p);
   const own = model.groups[roleGroup(position)];
   // Defending is measured squad-wide; the rest compare a player with their role group.
@@ -240,7 +275,14 @@ export function buildRatingModel(members: ModelMember[]): RatingModel {
   }
 
   const prior = { mean: 0, sd: 1 };
-  const comps = eligible.map((m) => compositeOf(components({ groups }, m.profile, m.position), m.profile.apps));
+  // Each player's composite at their best-fit position, matching how they're rated.
+  const comps = eligible.map((m) =>
+    Math.max(
+      ...candidatePositions(m.position, m.altPositions).map((pos) =>
+        compositeOf(components({ groups }, m.profile, pos, m.position), m.profile.apps),
+      ),
+    ),
+  );
   const attrsRaw = eligible.map((m) => rawAttributes({ groups }, m.profile, m.position));
   const restandard = (xs: number[]): Stat => {
     const n = xs.length;
@@ -271,14 +313,14 @@ export interface PlayerRating {
   breakdown: ComponentZ[];
 }
 
-export function ratePlayer(model: RatingModel, p: PlayerProfile, position: string): PlayerRating {
+export function ratePlayer(model: RatingModel, p: PlayerProfile, position: string, peerPosition = position): PlayerRating {
   if (p.apps === 0) return { ovr: null, attrs: null, z: null, breakdown: [] };
-  const comps = components(model, p, position);
+  const comps = components(model, p, position, peerPosition);
   const c = compositeOf(comps, p.apps);
   const z = (c - model.composite.mean) / model.composite.sd;
   const ovr = Math.round(Math.max(35, Math.min(99, toScale(z, 73, 24, 2.4))));
 
-  const raw = rawAttributes(model, p, position);
+  const raw = rawAttributes(model, p, peerPosition);
   const reliability = p.apps / (p.apps + 3);
   const attrs = {} as Attributes;
   for (const k of ATTR_KEYS) {
@@ -293,4 +335,34 @@ export function ratePlayer(model: RatingModel, p: PlayerProfile, position: strin
   attrs.FIN = skill(rate(p.goals), 2.8);
   attrs.CRE = skill(rate(p.assists), 3.5);
   return { ovr, attrs, z: Math.round(z * 100) / 100, breakdown: comps.filter((x) => x.weight > 0) };
+}
+
+export interface PositionRating {
+  position: string;
+  ovr: number;
+}
+
+export interface BestFitRating extends PlayerRating {
+  /** The position the overall is taken from. */
+  position: string;
+  /** Overall at every candidate position, best first. */
+  byPosition: PositionRating[];
+}
+
+/**
+ * Rate a player at their card position and every compatible / user-added position,
+ * and take the best fit, as a game card shows its rating at its best position.
+ */
+export function rateBestPosition(model: RatingModel, p: PlayerProfile, position: string, extra: readonly string[] = []): BestFitRating {
+  const candidates = candidatePositions(position, extra);
+  if (candidates.length === 0) candidates.push(position);
+  const rated = candidates.map((pos) => ({ pos, r: ratePlayer(model, p, pos, position) }));
+  if (p.apps === 0) return { ...rated[0]!.r, position, byPosition: [] };
+  // Ties keep the card position (listed first).
+  const best = rated.reduce((a, b) => ((b.r.z ?? -99) > (a.r.z ?? -99) ? b : a));
+  return {
+    ...best.r,
+    position: best.pos,
+    byPosition: rated.map((x) => ({ position: x.pos, ovr: x.r.ovr! })).sort((a, b) => b.ovr - a.ovr),
+  };
 }
