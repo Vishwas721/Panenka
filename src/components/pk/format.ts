@@ -40,17 +40,18 @@ export function initials(name: string) {
 }
 
 /**
- * Colour band for a 1–10 match rating, as a CSS variable name.
- * Mirrors the familiar broadcast scale: red → amber → neutral → green → teal → orchid → gold.
+ * Colour band for a match rating, as a CSS variable name, tuned to eFootball
+ * where 6.0 is a decent game, 6.5 good, 7.0+ excellent and 9.0 the practical ceiling:
+ * red → amber → neutral → green → teal → orchid → gold.
  */
 export function ratingVar(r: number | null | undefined): string {
   if (r === null || r === undefined) return "--muted-foreground";
-  if (r >= 10) return "--motm";
-  if (r >= 9) return "--rating";
-  if (r >= 8) return "--assists";
-  if (r >= 7) return "--win";
+  if (r >= 9) return "--motm";
+  if (r >= 8) return "--rating";
+  if (r >= 7) return "--assists";
+  if (r >= 6.5) return "--win";
   if (r >= 6) return "--draw";
-  if (r >= 5) return "--warning";
+  if (r >= 5.5) return "--warning";
   return "--loss";
 }
 
