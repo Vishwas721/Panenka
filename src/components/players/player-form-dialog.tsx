@@ -21,6 +21,7 @@ export interface EditablePlayer {
   fullName: string;
   displayName: string | null;
   position: Position;
+  altPositions?: Position[];
   preferredFoot: PreferredFoot;
   squadNumber: number | null;
   team: string | null;
@@ -84,6 +85,7 @@ export function PlayerFormDialog({ player, trigger, open: openProp, onOpenChange
       fullName: player?.fullName ?? "",
       displayName: player?.displayName ?? "",
       position: player?.position ?? "UNKNOWN",
+      altPositions: (player?.altPositions ?? []).filter((p) => p !== "UNKNOWN") as Exclude<Position, "UNKNOWN">[],
       preferredFoot: player?.preferredFoot ?? "UNKNOWN",
       squadNumber: player?.squadNumber ?? null,
       team: player?.team ?? defaultTeam ?? "",
@@ -99,6 +101,7 @@ export function PlayerFormDialog({ player, trigger, open: openProp, onOpenChange
     handleSubmit,
     control,
     reset,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<CreatePlayerInput>({
     resolver: zodResolver(createPlayerSchema) as any,
@@ -195,6 +198,47 @@ export function PlayerFormDialog({ player, trigger, open: openProp, onOpenChange
                   ))}
                 </div>
               )}
+            />
+          </Field>
+
+          <Field label="Also plays (optional)">
+            <Controller
+              control={control}
+              name="altPositions"
+              render={({ field }) => {
+                const value = field.value ?? [];
+                const toggle = (pos: Exclude<Position, "UNKNOWN">) =>
+                  field.onChange(value.includes(pos) ? value.filter((p) => p !== pos) : [...value, pos]);
+                return (
+                  <div>
+                    <div role="group" aria-label="Other positions they play" className="flex flex-wrap gap-1.5">
+                      {PITCH.flat()
+                        .filter((p): p is Exclude<Position, "UNKNOWN"> => p !== "UNKNOWN" && p !== watch("position"))
+                        .map((pos) => {
+                          const on = value.includes(pos);
+                          return (
+                            <button
+                              key={pos}
+                              type="button"
+                              aria-pressed={on}
+                              title={POSITION_LABEL[pos]}
+                              onClick={() => toggle(pos)}
+                              className={cn(
+                                "min-w-[3rem] rounded-full border px-2.5 py-1 font-mono text-[0.68rem] font-semibold uppercase tracking-[0.1em] transition-colors",
+                                on ? "border-foreground bg-foreground text-background" : "bg-card/70 text-muted-foreground hover:border-foreground/40 hover:text-foreground",
+                              )}
+                            >
+                              {pos}
+                            </button>
+                          );
+                        })}
+                    </div>
+                    <p className="mt-1.5 text-xs text-muted-foreground">
+                      Where you actually use them if it differs from their card. Their overall uses whichever role fits their numbers best.
+                    </p>
+                  </div>
+                );
+              }}
             />
           </Field>
 

@@ -33,6 +33,7 @@ export default async function PlayerProfilePage({ params }: Props) {
             fullName: player.fullName,
             displayName: player.displayName,
             position: player.position,
+            altPositions: player.altPositions,
             preferredFoot: player.preferredFoot,
             squadNumber: player.squadNumber,
             team: player.team,
