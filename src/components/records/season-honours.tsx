@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Trophy } from "lucide-react";
 import type { PlayerInsight } from "@/server/services/insights.service";
 import type { SplitLine } from "@/lib/stats/profile";
+import type { BallonRace } from "@/lib/stats/ballon-dor";
 import { HONOUR_BY_ID, HONOURS, type HonourId, type SeasonHonours } from "@/lib/stats/honours";
 import { cn } from "@/lib/utils";
 import { PlayerAvatar, RarityDot, RatingPill } from "@/components/pk/kit";
@@ -10,6 +11,7 @@ import { fmtRating, POSITION_SHORT, shortName } from "@/components/pk/format";
 const SQUAD_AWARDS = HONOURS.filter((h) => h.kind === "squad");
 
 function fmtValue(id: HonourId, v: number) {
+  if (id === "ballon-dor") return `${v.toFixed(1)} pts`;
   if (id === "best-rated" || id === "elite") return fmtRating(v);
   if (id === "mvp" || id === "star") return `${v} MOTM`;
   if (id === "playmaker") return `${v} A`;
@@ -84,8 +86,82 @@ function SeasonTable({ rows, offset, max }: { rows: SeasonRow[]; offset: number;
   );
 }
 
+/** Ballon d'Or standings: position-fair season points, eligible players first. */
+export function BallonDorRace({ race, players, current }: { race: BallonRace; players: PlayerInsight[]; current: boolean }) {
+  const byId = new Map(players.map((p) => [p.player.id, p]));
+  const eligible = race.entries.filter((e) => e.eligible).slice(0, 10);
+  const chasing = race.entries.filter((e) => !e.eligible).slice(0, 5);
+  const leader = eligible[0]?.score ?? 0;
+
+  return (
+    <div className="panel overflow-hidden border-motm/40">
+      <div className="flex flex-col gap-1 border-b p-5 sm:flex-row sm:items-baseline sm:justify-between">
+        <div className="flex items-center gap-2">
+          <Trophy className="h-4 w-4 text-motm" />
+          <span className="font-display text-xl font-extrabold uppercase tracking-wide">Ballon d&apos;Or</span>
+          <span className="font-mono text-[0.65rem] uppercase tracking-wider text-muted-foreground">{current ? "live standings" : "final standings"}</span>
+        </div>
+        <span className="text-xs text-muted-foreground">
+          Every player rated against their own position, then on one scale · needs {race.minApps} of {race.matches} games
+        </span>
+      </div>
+      {eligible.length === 0 ? (
+        <p className="p-5 text-sm text-muted-foreground">Nobody has played {race.minApps} games yet this season.</p>
+      ) : (
+        <ol className="divide-y">
+          {eligible.map((e, i) => {
+            const p = byId.get(e.playerId);
+            if (!p) return null;
+            const line = [
+              `${e.apps} apps`,
+              e.goals || e.assists ? `${e.goals}G ${e.assists}A` : null,
+              e.motm ? `${e.motm} MOTM` : null,
+              ["GK", "CB", "LB", "RB", "CDM"].includes(e.position) ? `${e.cleanSheets} clean sheets` : null,
+              `avg ${fmtRating(e.avgRating)}`,
+            ].filter(Boolean).join(" · ");
+            return (
+              <li key={e.playerId} className={cn("flex items-center gap-3 px-5 py-3", i === 0 && "bg-motm/5")}>
+                <span className={cn("w-5 font-mono text-sm", i === 0 ? "text-motm" : "text-muted-foreground")}>{i + 1}</span>
+                <PlayerAvatar name={p.player.fullName} imageUrl={p.player.imageUrl} className="h-9 w-9 text-xs" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-baseline gap-2">
+                    <Link href={`/players/${e.playerId}`} className={cn("truncate hover:underline", i === 0 && "font-semibold")}>{shortName(p.player)}</Link>
+                    <span className="font-mono text-[0.65rem] text-muted-foreground">{POSITION_SHORT(e.position)}</span>
+                  </div>
+                  <div className="truncate text-xs text-muted-foreground">
+                    {line}
+                    {e.strengths.length > 0 && <span className="hidden md:inline"> · strong on {e.strengths.join(", ").toLowerCase()}</span>}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="numeral text-2xl" style={i === 0 ? { color: "hsl(var(--motm))" } : undefined}>{e.score.toFixed(1)}</div>
+                  <div className="font-mono text-[0.6rem] text-muted-foreground">{i === 0 ? "pts" : `−${(leader - e.score).toFixed(1)}`}</div>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+      {chasing.length > 0 && (
+        <div className="border-t px-5 py-3 text-xs text-muted-foreground">
+          <span className="eyebrow mr-2">Not enough games yet</span>
+          {chasing.map((e, i) => {
+            const p = byId.get(e.playerId);
+            return p ? (
+              <span key={e.playerId}>
+                {i > 0 && " · "}
+                <Link href={`/players/${e.playerId}`} className="hover:underline">{shortName(p.player)}</Link> {e.score.toFixed(1)} ({e.apps}/{race.minApps})
+              </span>
+            ) : null;
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Live table and award races for one season (the newest one by default). */
-export function SeasonLive({ season, players }: { season: SeasonHonours; players: PlayerInsight[] }) {
+export function SeasonLive({ season, players, ballonDor }: { season: SeasonHonours; players: PlayerInsight[]; ballonDor: BallonRace | null }) {
   const rows = seasonRows(players, season.key).sort(
     (a, b) => b.line.goals + b.line.assists - (a.line.goals + a.line.assists) || b.line.goals - a.line.goals || b.line.apps - a.line.apps,
   );
@@ -97,6 +173,7 @@ export function SeasonLive({ season, players }: { season: SeasonHonours; players
 
   return (
     <div className="space-y-6">
+      {ballonDor && <BallonDorRace race={ballonDor} players={players} current={season.current} />}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {RACES.map((race) => {
           const ranked = rows

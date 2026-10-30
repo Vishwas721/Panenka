@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function RecordsPage() {
-  const { seasons, players: squad } = await getSeasonsOverview();
+  const { seasons, ballonDor, players: squad } = await getSeasonsOverview();
   const active = squad.filter((i) => i.profile.apps > 0);
 
   if (active.length === 0) {
@@ -87,7 +87,7 @@ export default async function RecordsPage() {
             title={`${seasons[0].label} season`}
             note={seasons[0].current ? "live · who's leading what" : "latest season"}
           />
-          <SeasonLive season={seasons[0]} players={active} />
+          <SeasonLive season={seasons[0]} players={active} ballonDor={ballonDor} />
         </section>
       )}
 

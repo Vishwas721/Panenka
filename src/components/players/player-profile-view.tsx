@@ -189,6 +189,7 @@ function Hero({ insight, actions }: { insight: P; actions?: React.ReactNode }) {
 // ---------------------------------------------------------------------------
 
 function honourValue(id: HonourId, v: number) {
+  if (id === "ballon-dor") return `${v.toFixed(1)} pts`;
   if (id === "best-rated" || id === "elite") return `${fmtRating(v)} avg`;
   if (id === "mvp" || id === "star") return `${v} MOTM`;
   if (id === "playmaker") return `${v} assists`;
