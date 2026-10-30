@@ -5,6 +5,7 @@ import type { PlayerInsightDetail } from "@/server/services/insights.service";
 import type { SplitLine, TimelinePoint } from "@/lib/stats/profile";
 import { ATTRIBUTE_META, cardKeys } from "@/lib/stats/attributes";
 import { roleGroup } from "@/lib/stats/rating-model";
+import { HONOUR_BY_ID, HONOURS, type HonourId } from "@/lib/stats/honours";
 import { FAMILY_LABELS, KEYWORD_CATALOGUE, RARITIES, rarityRank, type Family, type Keyword } from "@/lib/stats/keywords";
 import { cn } from "@/lib/utils";
 import { PlayerCard } from "@/components/pk/player-card";
@@ -37,6 +38,7 @@ export function PlayerProfileView({ insight, actions }: { insight: P; actions?: 
             { id: "overview", label: "Overview", content: <Overview insight={insight} /> },
             { id: "matches", label: "Matches", count: profile.apps, content: <Matches timeline={profile.timeline} /> },
             { id: "splits", label: "Splits", content: <Splits insight={insight} /> },
+            { id: "honours", label: "Honours", count: insight.honours.filter((h) => !h.current).length, content: <Honours insight={insight} /> },
             { id: "keywords", label: "Keywords", count: insight.keywords.unlocked.length, content: <Keywords insight={insight} /> },
             { id: "records", label: "Records", content: <Records insight={insight} /> },
           ]}
@@ -179,6 +181,96 @@ function Hero({ insight, actions }: { insight: P; actions?: React.ReactNode }) {
         )}
       </div>
     </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Honours
+// ---------------------------------------------------------------------------
+
+function honourValue(id: HonourId, v: number) {
+  if (id === "best-rated" || id === "elite") return `${fmtRating(v)} avg`;
+  if (id === "mvp" || id === "star") return `${v} MOTM`;
+  if (id === "playmaker") return `${v} assists`;
+  return `${v} goals`;
+}
+
+function Honours({ insight }: { insight: P }) {
+  const won = insight.honours.filter((h) => !h.current);
+  const holding = insight.honours.filter((h) => h.current);
+  const first = insight.player.fullName.split(" ")[0];
+  const seasons = [...new Set(won.map((h) => h.seasonKey))];
+
+  return (
+    <div className="space-y-14">
+      <section>
+        <SectionHeading index="A" title="Trophy cabinet" note={`${won.length} season award${won.length === 1 ? "" : "s"}`} />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {HONOURS.map((h) => {
+            const n = won.filter((x) => x.id === h.id).length;
+            const now = holding.some((x) => x.id === h.id);
+            return (
+              <div key={h.id} className={cn("panel p-4", n === 0 && !now && "opacity-50")} title={h.description}>
+                <div className="eyebrow flex items-center gap-2"><RarityDot rarity={h.rarity} /> {h.name}</div>
+                <div className="mt-2 flex items-baseline gap-1.5">
+                  <span className="numeral text-4xl">{n}</span>
+                  <span className="font-mono text-[0.65rem] text-muted-foreground">won</span>
+                </div>
+                <div className={cn("mt-1 font-mono text-[0.68rem]", now ? "text-primary" : "text-muted-foreground")}>
+                  {now ? "● on course this season" : h.kind === "squad" ? "squad leader" : "reach the bar"}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {holding.length > 0 && (
+        <section>
+          <SectionHeading index="B" title="This season" note={`${holding[0]!.seasonLabel} · in progress`} />
+          <div className="panel divide-y">
+            {holding.map((h) => (
+              <div key={h.id} className="flex items-center gap-3 p-4">
+                <RarityDot rarity={HONOUR_BY_ID[h.id].rarity} />
+                <span className="font-semibold">{HONOUR_BY_ID[h.id].name}</span>
+                <span className="text-sm text-muted-foreground">{HONOUR_BY_ID[h.id].kind === "squad" ? "leading the squad" : "bar reached"}</span>
+                <span className="ml-auto font-mono text-xs">{honourValue(h.id, h.value)}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section>
+        <SectionHeading index={holding.length > 0 ? "C" : "B"} title="Season by season" />
+        {seasons.length === 0 ? (
+          <p className="panel p-5 text-sm text-muted-foreground">
+            No finished-season awards yet. Awards are confirmed when a season (a calendar month) ends; until then {first} shows up under
+            &ldquo;This season&rdquo; if they&apos;re leading.
+          </p>
+        ) : (
+          <div className="panel divide-y">
+            {seasons.map((key) => {
+              const list = won.filter((h) => h.seasonKey === key);
+              return (
+                <div key={key} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-baseline">
+                  <span className="w-28 shrink-0 font-display text-lg font-extrabold uppercase">{list[0]!.seasonLabel}</span>
+                  <div className="flex flex-wrap gap-2">
+                    {list.map((h) => (
+                      <span key={h.id} className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs">
+                        <RarityDot rarity={HONOUR_BY_ID[h.id].rarity} />
+                        {HONOUR_BY_ID[h.id].name}
+                        <span className="font-mono text-[0.65rem] text-muted-foreground">{honourValue(h.id, h.value)}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+    </div>
   );
 }
 
@@ -546,12 +638,10 @@ function Splits({ insight }: { insight: P }) {
       <div className="grid gap-12 lg:grid-cols-2">
         <SplitTable title="Home & away" rows={p.splits.venue} />
         <SplitTable title="Starter vs sub" rows={p.splits.role} />
-        <SplitTable title="Competitions" rows={byApps(p.splits.competition)} />
-        <SplitTable title="Seasons" rows={[...p.splits.season].sort((a, b) => b.key.localeCompare(a.key))} />
         <SplitTable title="Opponents" rows={byApps(p.splits.opponent)} note="most-faced first" limit={12} />
         <SplitTable title="Day of week" rows={p.splits.weekday} />
       </div>
-      <SplitTable title="Month by month" rows={[...p.splits.month].sort((a, b) => b.key.localeCompare(a.key))} />
+      <SplitTable title="Seasons" note="one calendar month each" rows={[...p.splits.season].sort((a, b) => b.key.localeCompare(a.key))} />
     </div>
   );
 }
