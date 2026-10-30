@@ -13,8 +13,8 @@ import {
   type Keyword,
   type KeywordResult,
 } from "@/lib/stats/keywords";
-import { ballonDorRace, type BallonRace } from "@/lib/stats/ballon-dor";
-import { seasonHonours, honoursFor, type PlayerHonour, type SeasonHonours } from "@/lib/stats/honours";
+import type { BallonRace } from "@/lib/stats/ballon-dor";
+import { seasonHonours, honoursFor, ballonRecords, ballonTable, type BallonRecord, type PlayerHonour, type SeasonHonours } from "@/lib/stats/honours";
 import { buildRatingModel, rateAtPositions, type ComponentZ, type PositionRating } from "@/lib/stats/rating-model";
 import type { Position, PreferredFoot } from "@prisma/client";
 
@@ -54,6 +54,8 @@ export interface PlayerInsight {
   keywords: KeywordResult;
   /** Season honours won (and, for the season in progress, currently held). */
   honours: PlayerHonour[];
+  /** Ballon d'Or placings across seasons and live position this season. */
+  ballonDor: BallonRecord | null;
 }
 
 export interface SquadRank {
@@ -155,6 +157,7 @@ function buildInsights(rows: PlayerRow[]): PlayerInsight[] {
   const activeMembers = base.filter((b) => !b.row.archivedAt).map((b) => ({ id: b.row.id, position: b.row.position, profile: b.profile, ovr: b.ovr, records: b.records }));
   const squad = squadKeywords(activeMembers);
   const seasons = seasonHonours(activeMembers);
+  const ballon = ballonRecords(seasons);
   return base.map(({ row, profile, attrs, ovr, rating }) => ({
     player: identity(row),
     profile,
@@ -165,6 +168,7 @@ function buildInsights(rows: PlayerRow[]): PlayerInsight[] {
     archetype: archetype(attrs, rating.position),
     keywords: evaluateKeywords({ profile, attrs, ovr, position: rating.position, squad: squad.get(row.id) ?? [] }),
     honours: honoursFor(seasons, row.id),
+    ballonDor: ballon.get(row.id) ?? null,
   }));
 }
 
@@ -179,6 +183,8 @@ export interface SeasonsOverview {
   seasons: SeasonHonours[];
   /** Ballon d'Or standings for the newest season. */
   ballonDor: BallonRace | null;
+  /** All-time Ballon d'Or table. */
+  ballonTable: BallonRecord[];
   /** Every active player, for looking up winners by id. */
   players: PlayerInsight[];
 }
@@ -190,7 +196,7 @@ export async function getSeasonsOverview(): Promise<SeasonsOverview> {
   const byId = new Map(rows.map((r) => [r.id, r]));
   const members = players.map((i) => ({ id: i.player.id, position: i.player.position, profile: i.profile, records: toRecords(byId.get(i.player.id)!) }));
   const seasons = seasonHonours(members);
-  return { seasons, ballonDor: seasons[0] ? ballonDorRace(members, seasons[0].key) : null, players };
+  return { seasons, ballonDor: seasons[0]?.ballonDor ?? null, ballonTable: ballonTable(seasons), players };
 }
 
 function rankOf(

@@ -12,7 +12,7 @@
  * Pure: no I/O.
  */
 import type { MatchRecord, PlayerProfile, SplitLine } from "./profile";
-import { ballonDorRace } from "./ballon-dor";
+import { ballonDorRace, type BallonRace } from "./ballon-dor";
 import type { Rarity } from "./keywords";
 
 export type HonourId = "ballon-dor" | "boot" | "playmaker" | "mvp" | "best-rated" | "talisman" | "royalty" | "star" | "elite";
@@ -61,6 +61,8 @@ export interface SeasonHonours {
   /** True for the season still being played. */
   current: boolean;
   awards: { id: HonourId; winners: HonourWinner[] }[];
+  /** Full Ballon d'Or standings (when match records were supplied). */
+  ballonDor: BallonRace | null;
 }
 
 export interface PlayerHonour {
@@ -111,7 +113,7 @@ export function seasonHonours(members: HonourMember[], now: Date = new Date()): 
         { id: "star", winners: reach((l) => (l.motm >= 3 ? l.motm : null)) },
         { id: "elite", winners: reach((l, m) => (l.apps >= 5 && l.avgRating !== null && l.avgRating >= elite(l, m) ? l.avgRating : null)) },
       ];
-      return { key, label, current: key === currentKey, awards: awards.filter((a) => a.winners.length > 0) };
+      return { key, label, current: key === currentKey, awards: awards.filter((a) => a.winners.length > 0), ballonDor: race };
     });
 }
 
@@ -124,4 +126,69 @@ export function honoursFor(seasons: SeasonHonours[], playerId: string): PlayerHo
         .map((w) => ({ id: a.id, seasonKey: s.key, seasonLabel: s.label, value: w.value, current: s.current })),
     ),
   );
+}
+
+// ---------------------------------------------------------------------------
+// Ballon d'Or placings
+// ---------------------------------------------------------------------------
+
+/** Placings tracked: 1st to 10th. */
+export const BALLON_PLACES = 10;
+
+/** Finishing position among eligible players (ties share), or null if not eligible. */
+export function ballonRank(race: BallonRace, playerId: string): number | null {
+  const me = race.entries.find((e) => e.playerId === playerId && e.eligible);
+  if (!me) return null;
+  return 1 + race.entries.filter((e) => e.eligible && e.score > me.score).length;
+}
+
+export interface BallonRecord {
+  playerId: string;
+  /** placings[0] = times 1st … placings[9] = times 10th, finished seasons only. */
+  placings: number[];
+  wins: number;
+  podiums: number;
+  top10: number;
+  best: number | null;
+  /** Live position in the season in progress. */
+  live: { rank: number | null; score: number; apps: number; minApps: number } | null;
+}
+
+function emptyRecord(playerId: string): BallonRecord {
+  return { playerId, placings: Array(BALLON_PLACES).fill(0), wins: 0, podiums: 0, top10: 0, best: null, live: null };
+}
+
+/** Every player's Ballon d'Or history: wins, podiums and top-10 finishes. */
+export function ballonRecords(seasons: SeasonHonours[]): Map<string, BallonRecord> {
+  const out = new Map<string, BallonRecord>();
+  const get = (id: string) => out.get(id) ?? out.set(id, emptyRecord(id)).get(id)!;
+  for (const s of seasons) {
+    const race = s.ballonDor;
+    if (!race) continue;
+    for (const e of race.entries) {
+      const rank = ballonRank(race, e.playerId);
+      if (s.current) {
+        get(e.playerId).live = { rank, score: e.score, apps: e.apps, minApps: race.minApps };
+        continue;
+      }
+      if (rank === null || rank > BALLON_PLACES) continue;
+      const r = get(e.playerId);
+      r.placings[rank - 1]!++;
+      r.top10++;
+      if (rank <= 3) r.podiums++;
+      if (rank === 1) r.wins++;
+      r.best = r.best === null ? rank : Math.min(r.best, rank);
+    }
+  }
+  return out;
+}
+
+/** All-time table: most wins, then most 2nds, 3rds… then live position. */
+export function ballonTable(seasons: SeasonHonours[]): BallonRecord[] {
+  return [...ballonRecords(seasons).values()]
+    .filter((r) => r.top10 > 0 || (r.live?.rank ?? 99) <= BALLON_PLACES)
+    .sort((a, b) => {
+      for (let i = 0; i < BALLON_PLACES; i++) if (a.placings[i] !== b.placings[i]) return b.placings[i]! - a.placings[i]!;
+      return (a.live?.rank ?? 99) - (b.live?.rank ?? 99);
+    });
 }

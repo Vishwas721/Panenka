@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { buildProfile, teamScore, resultOf, type MatchRecord } from "./profile";
 import { computeAttributes, computeOverall, cardTier, archetype, cardKeys } from "./attributes";
-import { seasonHonours, honoursFor } from "./honours";
+import { seasonHonours, honoursFor, ballonRecords, ballonTable } from "./honours";
 import { ballonDorRace } from "./ballon-dor";
 import { buildRatingModel, ratePlayer, rateAtPositions, candidatePositions, POSITION_WEIGHTS } from "./rating-model";
 import { evaluateKeywords, squadKeywords, KEYWORD_CATALOGUE } from "./keywords";
@@ -343,5 +343,34 @@ describe("Ballon d'Or", () => {
   it("never asks for more than 10 games", () => {
     const long = ballonDorRace([{ id: "x", position: "ST", records: games(() => ({}), 60) }], "2026-10");
     expect(long.minApps).toBe(10);
+  });
+});
+
+describe("Ballon d'Or placings", () => {
+  const month = (m: number, id: string, rating: number, goals = 0) =>
+    Array.from({ length: 6 }, (_, i) =>
+      rec({ matchId: `pl${m}-${i}`, date: new Date(Date.UTC(2026, m, 2 + i)).toISOString(), rating, goals, goalsFor: 1, goalsAgainst: 1 }),
+    );
+  // Aug and Sep finished; Oct is live.
+  const members = [
+    { id: "a", position: "ST", records: [...month(7, "a", 7.2, 1), ...month(8, "a", 6.0), ...month(9, "a", 6.9, 1)] },
+    { id: "b", position: "ST", records: [...month(7, "b", 6.0), ...month(8, "b", 7.2, 1), ...month(9, "b", 6.0)] },
+    { id: "c", position: "ST", records: [...month(7, "c", 6.4), ...month(8, "c", 6.5), ...month(9, "c", 6.2)] },
+  ].map((m) => ({ ...m, profile: buildProfile(m.records) }));
+  const seasons = seasonHonours(members, new Date("2026-10-20T00:00:00Z"));
+  const recs = ballonRecords(seasons);
+
+  it("counts finishes by place in finished seasons only", () => {
+    expect(recs.get("a")!.placings.slice(0, 3)).toEqual([1, 0, 1]);
+    expect(recs.get("b")!.wins).toBe(1);
+    expect(recs.get("c")!.placings[1]).toBe(2);
+    expect(recs.get("c")!.podiums).toBe(2);
+    expect(recs.get("a")!.live!.rank).toBe(1);
+  });
+
+  it("ranks the all-time table by wins, then by lower places", () => {
+    const t = ballonTable(seasons).map((r) => r.playerId);
+    expect(t.indexOf("c")).toBeGreaterThan(t.indexOf("a"));
+    expect(t.indexOf("c")).toBeGreaterThan(t.indexOf("b"));
   });
 });
