@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Users, CalendarDays, Swords, Trophy, Sparkles, Plus } from "lucide-react";
+import { Home, Users, CalendarDays, Swords, Trophy, Sparkles, Plus, Crown } from "lucide-react";
 import { brand } from "@/config/brand";
 import { cn } from "@/lib/utils";
 import { ThemeSwitcher } from "@/components/theme/theme-switcher";
@@ -12,8 +12,9 @@ import type { TickerItem } from "@/server/services/insights.service";
 export const NAV_ITEMS = [
   { label: "Matchday", short: "Home", href: "/", icon: Home, exact: true },
   { label: "Squad", short: "Squad", href: "/players", icon: Users },
-  { label: "Fixtures", short: "Fixtures", href: "/matches", icon: CalendarDays },
+  { label: "Fixtures", short: "Games", href: "/matches", icon: CalendarDays },
   { label: "Records", short: "Records", href: "/records", icon: Trophy },
+  { label: "Ballon d'Or", short: "Ballon", href: "/ballon-dor", icon: Crown },
   { label: "Head to Head", short: "H2H", href: "/compare", icon: Swords },
   { label: "Codex", short: "Codex", href: "/keywords", icon: Sparkles },
 ] as const;
@@ -135,11 +136,11 @@ export function AppShell({ children, ticker }: { children: React.ReactNode; tick
         className="fixed inset-x-3 bottom-3 z-50 flex items-center justify-between rounded-2xl border bg-card/90 p-1.5 shadow-2xl backdrop-blur-xl lg:hidden"
         aria-label="Main"
       >
-        {NAV_ITEMS.slice(0, 3).map((item) => {
+        {NAV_ITEMS.slice(0, 4).map((item) => {
           const active = isActive(pathname, item.href, "exact" in item ? item.exact : false);
           const Icon = item.icon;
           return (
-            <Link key={item.href} href={item.href} className={cn("flex flex-1 flex-col items-center gap-0.5 rounded-xl py-1.5 text-[0.6rem] font-mono uppercase tracking-wider", active ? "bg-elevated text-foreground" : "text-muted-foreground")}>
+            <Link key={item.href} href={item.href} className={cn("flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl py-1.5 font-mono text-[0.56rem] uppercase tracking-normal", active ? "bg-elevated text-foreground" : "text-muted-foreground")}>
               <Icon className="h-4 w-4" />
               {item.short}
             </Link>
@@ -148,11 +149,11 @@ export function AppShell({ children, ticker }: { children: React.ReactNode; tick
         <Link href="/matches/new" className="mx-1 grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground" aria-label="Log match">
           <Plus className="h-5 w-5" />
         </Link>
-        {NAV_ITEMS.slice(3).map((item) => {
+        {NAV_ITEMS.slice(4).map((item) => {
           const active = isActive(pathname, item.href, false);
           const Icon = item.icon;
           return (
-            <Link key={item.href} href={item.href} className={cn("flex flex-1 flex-col items-center gap-0.5 rounded-xl py-1.5 text-[0.6rem] font-mono uppercase tracking-wider", active ? "bg-elevated text-foreground" : "text-muted-foreground")}>
+            <Link key={item.href} href={item.href} className={cn("flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl py-1.5 font-mono text-[0.56rem] uppercase tracking-normal", active ? "bg-elevated text-foreground" : "text-muted-foreground")}>
               <Icon className="h-4 w-4" />
               {item.short}
             </Link>
