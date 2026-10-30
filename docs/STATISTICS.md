@@ -92,7 +92,7 @@ Built from completed appearances, oldest first:
 - **Team share**: (goals + assists) ÷ team goals across games with a known score.
 - **Hauls**: exact goal and assist counts per match, goal + assist in the same game, 3+ G+A games, blanks.
 - **Streaks** (current and best): scoring, assisting, G+A, blank, MOTM, 7.0+ rated, 8.0+ rated, unbeaten, winning.
-- **Splits**: venue, starter/sub, competition, season (from the competition, else July–June), opponent, month, weekday.
+- **Splits**: venue, starter/sub, competition, season (one calendar month, matching eFootball's division cycle), opponent, month, weekday.
 - **Records**: top five by match score (`rating×10 + goals×9 + assists×6 + MOTM×8`, rating defaults to 6.2 when missing), firsts, personal bests per match/month/season, bounce-backs (+2 on the previous rated game), 9+ games without G+A.
 
 ## Overall rating (OVR) — squad-relative model (`src/lib/stats/rating-model.ts`)
@@ -151,4 +151,13 @@ Fixed keywords (see the Codex for the live count) plus 24 dynamic templates:
 - **Ladders**: one metric, many named thresholds (goals, assists, apps, MOTM, clean sheets, goals conceded, defender goals/assists, hauls, streaks, average/peak rating, efficiency rates, win rate, minutes, bench impact, home/away, opponents, seasons, calendar, attributes, OVR). Rarity rises along each ladder: common → rare → epic → legendary → mythic.
 - **Feats**: one-off conditions (debut goal, hat-trick + MOTM, perfect storm, redemption arc, no bad days…).
 - **Archetypes**: the player's play-style title after 5+ apps.
-- **Dynamic**: minted per opponent (Tormentor/Nemesis/Executioner, Never Lost to X…), competition, weekday, and squad-relative honours per season and month (Golden Boot, Playmaker, MVP, Best Rated, Player of the Month, Top Scorer) plus all-time squad leaders. Ties share honours. Archived players are excluded from squad honours.
+- **Dynamic**: minted per opponent (Tormentor/Nemesis/Executioner, Never Lost to X…), weekday, and season honours, plus all-time squad leaders. Ties share honours. Archived players are excluded from squad honours.
+
+## Seasons and honours
+
+A season is one calendar month (e.g. "Oct 2026"). Each season hands out (`src/lib/stats/honours.ts`):
+
+- **Squad awards**, to the season's leader: Golden Boot (goals), Playmaker (assists), MVP (Man of the Match awards), Best Rated (average, 5+ apps).
+- **Individual honours**, to anyone who reaches the bar: Talisman (5+ goals), Royalty (15+ goals, replaces Talisman), Star (3+ MOTM), Elite (6.8+ average, 6.5+ for GK/CB/full-backs/CDM, 5+ apps).
+
+The season in progress shows current leaders; trophy counts only include finished seasons. Records has a live season leaderboard and every season's winners; each player profile has an Honours tab.
