@@ -5,7 +5,7 @@ import type { PlayerInsightDetail } from "@/server/services/insights.service";
 import type { SplitLine, TimelinePoint } from "@/lib/stats/profile";
 import { ATTRIBUTE_META, cardKeys } from "@/lib/stats/attributes";
 import { roleGroup } from "@/lib/stats/rating-model";
-import { HONOUR_BY_ID, HONOURS, type HonourId } from "@/lib/stats/honours";
+import { BALLON_PLACES, HONOUR_BY_ID, HONOURS, type BallonRecord, type HonourId } from "@/lib/stats/honours";
 import { FAMILY_LABELS, KEYWORD_CATALOGUE, RARITIES, rarityRank, type Family, type Keyword } from "@/lib/stats/keywords";
 import { cn } from "@/lib/utils";
 import { PlayerCard } from "@/components/pk/player-card";
@@ -226,9 +226,14 @@ function Honours({ insight }: { insight: P }) {
         </div>
       </section>
 
+      <section>
+        <SectionHeading index="B" title="Ballon d'Or" note="finishes in finished seasons" action={<Link href="/ballon-dor" className="eyebrow hover:text-foreground">Standings →</Link>} />
+        <BallonPlacings record={insight.ballonDor} />
+      </section>
+
       {holding.length > 0 && (
         <section>
-          <SectionHeading index="B" title="This season" note={`${holding[0]!.seasonLabel} · in progress`} />
+          <SectionHeading index="C" title="This season" note={`${holding[0]!.seasonLabel} · in progress`} />
           <div className="panel divide-y">
             {holding.map((h) => (
               <div key={h.id} className="flex items-center gap-3 p-4">
@@ -243,7 +248,7 @@ function Honours({ insight }: { insight: P }) {
       )}
 
       <section>
-        <SectionHeading index={holding.length > 0 ? "C" : "B"} title="Season by season" />
+        <SectionHeading index={holding.length > 0 ? "D" : "C"} title="Season by season" />
         {seasons.length === 0 ? (
           <p className="panel p-5 text-sm text-muted-foreground">
             No finished-season awards yet. Awards are confirmed when a season (a calendar month) ends; until then {first} shows up under
@@ -271,6 +276,37 @@ function Honours({ insight }: { insight: P }) {
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+const ordinal = (n: number) => `${n}${n % 10 === 1 && n !== 11 ? "st" : n % 10 === 2 && n !== 12 ? "nd" : n % 10 === 3 && n !== 13 ? "rd" : "th"}`;
+
+function BallonPlacings({ record }: { record: BallonRecord | null }) {
+  const placings = record?.placings ?? Array<number>(BALLON_PLACES).fill(0);
+  const live = record?.live;
+  return (
+    <div className="panel p-5">
+      <div className="mb-5 flex flex-wrap gap-x-8 gap-y-3">
+        <Stat label="Won" value={record?.wins ?? 0} tone="motm" size="sm" />
+        <Stat label="Podiums" value={record?.podiums ?? 0} size="sm" />
+        <Stat label="Top 10" value={record?.top10 ?? 0} size="sm" />
+        <Stat label="Best finish" value={record?.best ? ordinal(record.best) : dash} size="sm" />
+        <Stat
+          label="This season"
+          value={live?.rank ? `#${live.rank}` : dash}
+          sub={live ? (live.rank ? `${live.score.toFixed(1)} pts` : `${live.apps}/${live.minApps} games to qualify`) : "not played"}
+          size="sm"
+        />
+      </div>
+      <div className="grid grid-cols-5 gap-2 sm:grid-cols-10">
+        {placings.map((n, i) => (
+          <div key={i} className={cn("rounded-md border p-2 text-center", n === 0 && "opacity-40", i === 0 && n > 0 && "border-motm/60 bg-motm/10")}>
+            <div className="font-mono text-[0.6rem] uppercase text-muted-foreground">{i === 0 ? "Winner" : i === 1 ? "Runner-up" : ordinal(i + 1)}</div>
+            <div className={cn("numeral mt-1 text-2xl", i === 0 && n > 0 && "text-motm")}>{n}</div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
