@@ -157,6 +157,8 @@ Fixed keywords (see the Codex for the live count) plus 24 dynamic templates:
 
 A season is one calendar month (e.g. "Oct 2026"). Each season hands out (`src/lib/stats/honours.ts`):
 
+- **Ballon d'Or** (`src/lib/stats/ballon-dor.ts`): the season's best player at any position. The season's matches alone are run through the same position-fair rating model as the overall (defenders judged on clean sheets, goals conceded and ratings vs defenders; wingers on goal contributions vs wingers; strikers on goals vs attackers), standardised across the squad onto one scale. Points = that season rating (≈73 average, ≈90 outstanding) + up to 3 for games played. Eligible with at least a third of the season's matches.
+
 - **Squad awards**, to the season's leader: Golden Boot (goals), Playmaker (assists), MVP (Man of the Match awards), Best Rated (average, 5+ apps).
 - **Individual honours**, to anyone who reaches the bar: Talisman (5+ goals), Royalty (15+ goals, replaces Talisman), Star (3+ MOTM), Elite (6.8+ average, 6.5+ for GK/CB/full-backs/CDM, 5+ apps).
 
