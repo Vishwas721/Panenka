@@ -207,11 +207,11 @@ export function PlayerFormDialog({ player, trigger, open: openProp, onOpenChange
               name="altPositions"
               render={({ field }) => {
                 const value = field.value ?? [];
-                const toggle = (pos: Exclude<Position, "UNKNOWN">) =>
-                  field.onChange(value.includes(pos) ? value.filter((p) => p !== pos) : [...value, pos]);
+                // One other position at most: picking a new one replaces the old.
+                const toggle = (pos: Exclude<Position, "UNKNOWN">) => field.onChange(value.includes(pos) ? [] : [pos]);
                 return (
                   <div>
-                    <div role="group" aria-label="Other positions they play" className="flex flex-wrap gap-1.5">
+                    <div role="group" aria-label="Other position they play" className="flex flex-wrap gap-1.5">
                       {PITCH.flat()
                         .filter((p): p is Exclude<Position, "UNKNOWN"> => p !== "UNKNOWN" && p !== watch("position"))
                         .map((pos) => {
@@ -234,7 +234,7 @@ export function PlayerFormDialog({ player, trigger, open: openProp, onOpenChange
                         })}
                     </div>
                     <p className="mt-1.5 text-xs text-muted-foreground">
-                      Where you actually use them if it differs from their card. Their overall uses whichever role fits their numbers best.
+                      One other position they can play. Their overall stays at the main position; the profile also shows their rating here.
                     </p>
                   </div>
                 );

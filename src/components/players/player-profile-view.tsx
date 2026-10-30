@@ -142,24 +142,17 @@ function Hero({ insight, actions }: { insight: P; actions?: React.ReactNode }) {
 
         {insight.rating.byPosition.length > 1 && (
           <div className="mt-8">
-            <div className="eyebrow mb-3">
-              Rating by position
-              {insight.rating.position !== player.position && (
-                <span className="ml-2 normal-case tracking-normal text-muted-foreground">
-                  · card says {player.position}, numbers fit {insight.rating.position} best
-                </span>
-              )}
-            </div>
+            <div className="eyebrow mb-3">Rating by position</div>
             <div className="flex flex-wrap gap-2">
               {insight.rating.byPosition.map((b, i) => (
                 <div
                   key={b.position}
                   className={cn("panel flex items-baseline gap-2 px-3 py-2", i === 0 && "border-primary/50")}
-                  title={b.position === player.position ? "Card position" : player.altPositions.includes(b.position as typeof player.position) ? "Set as 'also plays'" : "Natural alternative"}
+                  title={i === 0 ? "Main position" : "Also plays"}
                 >
                   <span className="font-mono text-[0.7rem] uppercase tracking-wider text-muted-foreground">{b.position}</span>
                   <span className={cn("numeral text-2xl", i === 0 && "text-primary")}>{b.ovr}</span>
-                  {b.position === player.position && <span className="font-mono text-[0.55rem] uppercase text-muted-foreground">card</span>}
+                  {i === 0 && <span className="font-mono text-[0.55rem] uppercase text-muted-foreground">main</span>}
                 </div>
               ))}
             </div>
@@ -364,8 +357,7 @@ function OvrBreakdown({ insight }: { insight: P }) {
       <p className="mb-5 max-w-3xl text-sm text-muted-foreground">
         Each number is compared with other {ROLE_PEERS[roleGroup(insight.player.position)]} in your squad
         {squadSize > 0 ? ` (${squadSize} players with 3+ games)` : ""}, adjusted for how many games it&apos;s based on, then weighted by the{" "}
-        <b className="text-foreground">{insight.rating.position}</b> recipe
-        {insight.rating.position !== insight.player.position ? ` (their best fit; the card says ${insight.player.position})` : ""}.
+        <b className="text-foreground">{insight.rating.position}</b> recipe.
         {z !== null && (
           <>
             {" "}Overall standing: <b className="text-foreground">{z >= 0 ? "+" : ""}{z.toFixed(2)} SD</b> from the squad average (≈ better than{" "}
