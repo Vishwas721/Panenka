@@ -339,7 +339,7 @@ function Overview({ insight }: { insight: P }) {
   );
 }
 
-const ROLE_PEERS = { ATT: "attackers", MID: "midfielders", DEF: "defenders & DMs", GK: "keepers" } as const;
+const ROLE_PEERS = { ATT: "attackers", WIDE: "wingers", MID: "midfielders", DEF: "defenders & DMs", GK: "keepers" } as const;
 
 /** Standard normal CDF, for turning a z-score into "better than X% of peers". */
 function pctOf(z: number) {

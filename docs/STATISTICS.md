@@ -119,7 +119,8 @@ Modelled on how scouting departments compare players (z-scores within a position
 5. **Composite** = Σ w·z / √Σw², pulled toward −0.6 ("unproven") by `apps / (apps + 8)` so a hot streak has to be sustained.
 6. **Scale**: composites are re-standardised across players with 3+ games, then `OVR = 73 + 24·tanh(z / 2.4)`: squad average ≈ 73, +1 SD ≈ 82, +2.5 SD ≈ 92, floor 35, cap 99.
 
-7. **Main and second position**: the overall always uses the player's main position. You can set one other position they play ("Also plays"); the profile then shows their rating there too. Only the recipe changes for that second position: numbers are still compared with the peer group of the main position, so it can't look better just because of a softer baseline.
+7. **Wingers**: LW/RW are compared with other wingers (strikers are compared with the whole front line), because wingers' match ratings and goal counts run lower. Their output uses goals + assists per game, where a goal and an assist count the same, plus their *strongest channel* (whichever of goals or assists stands out more). A goalscoring winger, a creator like an 11-assist Rashford and a balanced one all get full credit.
+8. **Main and second position**: the overall always uses the player's main position. You can set one other position they play ("Also plays"); the profile then shows their rating there too. Only the recipe changes for that second position: numbers are still compared with the peer group of the main position, so it can't look better just because of a softer baseline.
 
 The player page shows this breakdown under "How the overall is built", plus the rating at every candidate position.
 
