@@ -36,29 +36,9 @@ export function roleGroup(position: string): RoleGroup {
   return "MID";
 }
 
-/**
- * Natural alternative positions for each card position, like a game card's
- * secondary positions. Players are rated at all of these and their best fit counts.
- * Alternatives never cross from attack into defence, so an attacker's ratings are
- * never judged on the defensive scale (and vice versa).
- */
-export const COMPATIBLE_POSITIONS: Record<string, string[]> = {
-  ST: ["CAM", "LW", "RW"],
-  LW: ["RW", "ST", "CAM"],
-  RW: ["LW", "ST", "CAM"],
-  CAM: ["CM", "ST", "LW", "RW"],
-  CM: ["CAM", "CDM"],
-  CDM: ["CM", "CB"],
-  CB: ["CDM"],
-  LB: ["RB", "CB"],
-  RB: ["LB", "CB"],
-  GK: [],
-  UNKNOWN: ["CM", "CAM", "ST"],
-};
-
-/** Card position first, then its natural alternatives, then any the user added. */
+/** The player's main position first, then the one the user says they also play. */
 export function candidatePositions(position: string, extra: readonly string[] = []): string[] {
-  const out = [position, ...(COMPATIBLE_POSITIONS[position] ?? []), ...extra];
+  const out = [position, ...extra];
   return [...new Set(out)].filter((p) => p in POSITION_WEIGHTS && p !== "UNKNOWN");
 }
 
@@ -275,14 +255,7 @@ export function buildRatingModel(members: ModelMember[]): RatingModel {
   }
 
   const prior = { mean: 0, sd: 1 };
-  // Each player's composite at their best-fit position, matching how they're rated.
-  const comps = eligible.map((m) =>
-    Math.max(
-      ...candidatePositions(m.position, m.altPositions).map((pos) =>
-        compositeOf(components({ groups }, m.profile, pos, m.position), m.profile.apps),
-      ),
-    ),
-  );
+  const comps = eligible.map((m) => compositeOf(components({ groups }, m.profile, m.position), m.profile.apps));
   const attrsRaw = eligible.map((m) => rawAttributes({ groups }, m.profile, m.position));
   const restandard = (xs: number[]): Stat => {
     const n = xs.length;
@@ -342,27 +315,27 @@ export interface PositionRating {
   ovr: number;
 }
 
-export interface BestFitRating extends PlayerRating {
-  /** The position the overall is taken from. */
+export interface PositionedRating extends PlayerRating {
+  /** The position the overall is taken from: always the player's main position. */
   position: string;
-  /** Overall at every candidate position, best first. */
+  /** Overall at the main position and at the "also plays" position, if one is set. */
   byPosition: PositionRating[];
 }
 
 /**
- * Rate a player at their card position and every compatible / user-added position,
- * and take the best fit, as a game card shows its rating at its best position.
+ * Rate a player at their main position. If the user set a second playable
+ * position, the rating there is reported alongside but never replaces the main one.
  */
-export function rateBestPosition(model: RatingModel, p: PlayerProfile, position: string, extra: readonly string[] = []): BestFitRating {
-  const candidates = candidatePositions(position, extra);
-  if (candidates.length === 0) candidates.push(position);
-  const rated = candidates.map((pos) => ({ pos, r: ratePlayer(model, p, pos, position) }));
-  if (p.apps === 0) return { ...rated[0]!.r, position, byPosition: [] };
-  // Ties keep the card position (listed first).
-  const best = rated.reduce((a, b) => ((b.r.z ?? -99) > (a.r.z ?? -99) ? b : a));
+export function rateAtPositions(model: RatingModel, p: PlayerProfile, position: string, extra: readonly string[] = []): PositionedRating {
+  const main = ratePlayer(model, p, position);
+  if (p.apps === 0) return { ...main, position, byPosition: [] };
+  const others = candidatePositions(position, extra).filter((pos) => pos !== position);
   return {
-    ...best.r,
-    position: best.pos,
-    byPosition: rated.map((x) => ({ position: x.pos, ovr: x.r.ovr! })).sort((a, b) => b.ovr - a.ovr),
+    ...main,
+    position,
+    byPosition: [
+      { position, ovr: main.ovr! },
+      ...others.map((pos) => ({ position: pos, ovr: ratePlayer(model, p, pos, position).ovr! })),
+    ],
   };
 }

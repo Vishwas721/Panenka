@@ -13,7 +13,7 @@ import {
   type Keyword,
   type KeywordResult,
 } from "@/lib/stats/keywords";
-import { buildRatingModel, rateBestPosition, type ComponentZ, type PositionRating } from "@/lib/stats/rating-model";
+import { buildRatingModel, rateAtPositions, type ComponentZ, type PositionRating } from "@/lib/stats/rating-model";
 import type { Position, PreferredFoot } from "@prisma/client";
 
 export interface PlayerIdentity {
@@ -21,7 +21,7 @@ export interface PlayerIdentity {
   fullName: string;
   displayName: string | null;
   position: Position;
-  /** Extra positions set by the user. */
+  /** Second playable position set by the user (at most one). */
   altPositions: Position[];
   preferredFoot: PreferredFoot;
   squadNumber: number | null;
@@ -43,7 +43,7 @@ export interface PlayerInsight {
     z: number | null;
     breakdown: ComponentZ[];
     squadSize: number;
-    /** Best-fit position the overall is taken from (may differ from the card position). */
+    /** Position the overall is taken from (the player's main position). */
     position: string;
     byPosition: PositionRating[];
   };
@@ -132,10 +132,10 @@ function buildInsights(rows: PlayerRow[]): PlayerInsight[] {
   const model = buildRatingModel(
     profiled
       .filter((x) => !x.row.archivedAt)
-      .map((x) => ({ id: x.row.id, position: x.row.position, altPositions: x.row.altPositions, profile: x.profile })),
+      .map((x) => ({ id: x.row.id, position: x.row.position, profile: x.profile })),
   );
   const base = profiled.map(({ row, profile }) => {
-    const rated = rateBestPosition(model, profile, row.position, row.altPositions);
+    const rated = rateAtPositions(model, profile, row.position, row.altPositions);
     return {
       row,
       profile,
