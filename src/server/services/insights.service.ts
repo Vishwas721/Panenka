@@ -13,6 +13,7 @@ import {
   type Keyword,
   type KeywordResult,
 } from "@/lib/stats/keywords";
+import { ballonDorRace, type BallonRace } from "@/lib/stats/ballon-dor";
 import { seasonHonours, honoursFor, type PlayerHonour, type SeasonHonours } from "@/lib/stats/honours";
 import { buildRatingModel, rateAtPositions, type ComponentZ, type PositionRating } from "@/lib/stats/rating-model";
 import type { Position, PreferredFoot } from "@prisma/client";
@@ -130,24 +131,28 @@ function identity(row: PlayerRow): PlayerIdentity {
 }
 
 function buildInsights(rows: PlayerRow[]): PlayerInsight[] {
-  const profiled = rows.map((row) => ({ row, profile: buildProfile(toRecords(row)) }));
+  const profiled = rows.map((row) => {
+    const records = toRecords(row);
+    return { row, records, profile: buildProfile(records) };
+  });
   // One model per squad: active players define what "average" means for each role.
   const model = buildRatingModel(
     profiled
       .filter((x) => !x.row.archivedAt)
       .map((x) => ({ id: x.row.id, position: x.row.position, profile: x.profile })),
   );
-  const base = profiled.map(({ row, profile }) => {
+  const base = profiled.map(({ row, records, profile }) => {
     const rated = rateAtPositions(model, profile, row.position, row.altPositions);
     return {
       row,
+      records,
       profile,
       attrs: rated.attrs,
       ovr: rated.ovr,
       rating: { z: rated.z, breakdown: rated.breakdown, squadSize: model.squadSize, position: rated.position, byPosition: rated.byPosition },
     };
   });
-  const activeMembers = base.filter((b) => !b.row.archivedAt).map((b) => ({ id: b.row.id, position: b.row.position, profile: b.profile, ovr: b.ovr }));
+  const activeMembers = base.filter((b) => !b.row.archivedAt).map((b) => ({ id: b.row.id, position: b.row.position, profile: b.profile, ovr: b.ovr, records: b.records }));
   const squad = squadKeywords(activeMembers);
   const seasons = seasonHonours(activeMembers);
   return base.map(({ row, profile, attrs, ovr, rating }) => ({
@@ -172,17 +177,20 @@ export async function getSquadInsights(opts: { includeArchived?: boolean } = {})
 
 export interface SeasonsOverview {
   seasons: SeasonHonours[];
+  /** Ballon d'Or standings for the newest season. */
+  ballonDor: BallonRace | null;
   /** Every active player, for looking up winners by id. */
   players: PlayerInsight[];
 }
 
 /** All seasons with their winners, newest first, plus the squad for name lookups. */
 export async function getSeasonsOverview(): Promise<SeasonsOverview> {
-  const players = await getSquadInsights();
-  return {
-    seasons: seasonHonours(players.map((i) => ({ id: i.player.id, position: i.player.position, profile: i.profile }))),
-    players,
-  };
+  const rows = (await loadPlayers(false)).filter((r) => !r.archivedAt);
+  const players = buildInsights(rows);
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const members = players.map((i) => ({ id: i.player.id, position: i.player.position, profile: i.profile, records: toRecords(byId.get(i.player.id)!) }));
+  const seasons = seasonHonours(members);
+  return { seasons, ballonDor: seasons[0] ? ballonDorRace(members, seasons[0].key) : null, players };
 }
 
 function rankOf(

@@ -1,6 +1,7 @@
 /**
  * Season honours. A season is one calendar month (see `seasonOf` in ./profile).
  *
+ * Ballon d'Or: the season's best player across all positions (see ./ballon-dor).
  * Squad awards go to whoever leads the squad that season (ties share):
  *   Golden Boot (goals), Playmaker (assists), MVP (Man of the Match awards),
  *   Best Rated (average rating, 5+ apps).
@@ -10,10 +11,11 @@
  *
  * Pure: no I/O.
  */
-import type { PlayerProfile, SplitLine } from "./profile";
+import type { MatchRecord, PlayerProfile, SplitLine } from "./profile";
+import { ballonDorRace } from "./ballon-dor";
 import type { Rarity } from "./keywords";
 
-export type HonourId = "boot" | "playmaker" | "mvp" | "best-rated" | "talisman" | "royalty" | "star" | "elite";
+export type HonourId = "ballon-dor" | "boot" | "playmaker" | "mvp" | "best-rated" | "talisman" | "royalty" | "star" | "elite";
 
 export interface HonourDef {
   id: HonourId;
@@ -24,6 +26,7 @@ export interface HonourDef {
 }
 
 export const HONOURS: HonourDef[] = [
+  { id: "ballon-dor", name: "Ballon d'Or", description: "Best player of the season, rated fairly across every position", kind: "squad", rarity: "mythic" },
   { id: "boot", name: "Golden Boot", description: "Squad's top scorer in a season", kind: "squad", rarity: "legendary" },
   { id: "playmaker", name: "Playmaker", description: "Squad's top assister in a season", kind: "squad", rarity: "legendary" },
   { id: "mvp", name: "MVP", description: "Most Man of the Match awards in a season", kind: "squad", rarity: "legendary" },
@@ -42,11 +45,13 @@ export interface HonourMember {
   id: string;
   position: string;
   profile: PlayerProfile;
+  /** Match records; needed for the Ballon d'Or, which re-rates each season on its own. */
+  records?: MatchRecord[];
 }
 
 export interface HonourWinner {
   playerId: string;
-  /** The stat that won it (goals, assists, MOTM count or average rating). */
+  /** The stat that won it (Ballon d'Or score, goals, assists, MOTM count or average rating). */
   value: number;
 }
 
@@ -90,7 +95,13 @@ export function seasonHonours(members: HonourMember[], now: Date = new Date()): 
         pick(f).filter((r): r is { id: string; v: number } => r.v !== null).map((r) => ({ playerId: r.id, value: r.v }));
       const elite = (l: SplitLine, m: HonourMember) => (DEFENSIVE.has(m.position) ? 6.5 : 6.8);
 
+      const withRecords = members.filter((m): m is HonourMember & { records: MatchRecord[] } => !!m.records);
+      const race = withRecords.length ? ballonDorRace(withRecords, key) : null;
+      const top = race?.entries.find((e) => e.eligible);
+      const ballon = top ? race!.entries.filter((e) => e.eligible && e.score === top.score).map((e) => ({ playerId: e.playerId, value: e.score })) : [];
+
       const awards: SeasonHonours["awards"] = [
+        { id: "ballon-dor", winners: ballon },
         { id: "boot", winners: leaders(pick((l) => l.goals)) },
         { id: "playmaker", winners: leaders(pick((l) => l.assists)) },
         { id: "mvp", winners: leaders(pick((l) => l.motm)) },

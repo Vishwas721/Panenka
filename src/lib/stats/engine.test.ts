@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { buildProfile, teamScore, resultOf, type MatchRecord } from "./profile";
 import { computeAttributes, computeOverall, cardTier, archetype, cardKeys } from "./attributes";
 import { seasonHonours, honoursFor } from "./honours";
+import { ballonDorRace } from "./ballon-dor";
 import { buildRatingModel, ratePlayer, rateAtPositions, candidatePositions, POSITION_WEIGHTS } from "./rating-model";
 import { evaluateKeywords, squadKeywords, KEYWORD_CATALOGUE } from "./keywords";
 
@@ -308,5 +309,34 @@ describe("season honours", () => {
     const sepBoot = seasons[1]!.awards.find((x) => x.id === "boot")!.winners;
     expect(sepBoot.map((w) => w.playerId)).toEqual(["b"]);
     expect(honoursFor(seasons, "b").map((h) => `${h.seasonLabel} ${h.id}`)).toContain("Sep 2026 boot");
+  });
+});
+
+describe("Ballon d'Or", () => {
+  // 20 matches in Oct 2026; ids shared so the squad played 20 games.
+  const games = (f: (i: number) => Partial<MatchRecord>, n = 20) =>
+    Array.from({ length: n }, (_, i) => rec({ matchId: `bd${i}`, date: new Date(Date.UTC(2026, 9, 1 + i)).toISOString(), ...f(i) }));
+  const members = [
+    // A dominant centre-back: clean sheets and strong defensive ratings.
+    { id: "cb", position: "CB", records: games((i) => ({ goalsFor: 1, goalsAgainst: i % 4 === 0 ? 1 : 0, rating: 6.4 })) },
+    // An ordinary striker: a goal every few games, average ratings.
+    { id: "st", position: "ST", records: games((i) => ({ goalsFor: 1, goalsAgainst: 1, goals: i % 4 === 0 ? 1 : 0, rating: 6.0 })) },
+    { id: "avg-cb", position: "CB", records: games(() => ({ goalsFor: 1, goalsAgainst: 1, rating: 5.7 })) },
+    { id: "avg-st", position: "ST", records: games((i) => ({ goalsFor: 1, goalsAgainst: 1, goals: i % 3 === 0 ? 1 : 0, rating: 6.1 })) },
+    // A hot streak over too few games to be eligible.
+    { id: "cameo", position: "ST", records: games(() => ({ goals: 3, rating: 9, motm: true }), 4) },
+  ];
+  const race = ballonDorRace(members, "2026-10");
+
+  it("lets an outstanding defender beat an ordinary striker", () => {
+    const at = (id: string) => race.entries.findIndex((e) => e.playerId === id);
+    expect(at("cb")).toBeLessThan(at("st"));
+    expect(race.entries[0]!.playerId).toBe("cb");
+  });
+
+  it("needs a third of the season's matches to be eligible", () => {
+    expect(race.matches).toBe(20);
+    expect(race.minApps).toBe(7);
+    expect(race.entries.find((e) => e.playerId === "cameo")!.eligible).toBe(false);
   });
 });

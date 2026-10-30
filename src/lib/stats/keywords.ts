@@ -9,7 +9,7 @@
  *
  * Pure: evaluation only reads a PlayerProfile and derived attributes.
  */
-import type { PlayerProfile, TimelinePoint } from "./profile";
+import type { MatchRecord, PlayerProfile, TimelinePoint } from "./profile";
 import { ALL_ATTRIBUTE_KEYS, cardKeys, type AttributeKey, type Attributes, archetype } from "./attributes";
 import { HONOURS, HONOUR_BY_ID, seasonHonours } from "./honours";
 
@@ -697,6 +697,8 @@ export interface SquadMember {
   position: string;
   profile: PlayerProfile;
   ovr: number | null;
+  /** Match records, for the Ballon d'Or. */
+  records?: MatchRecord[];
 }
 
 /** Award squad-relative honours. Ties share the honour. */
