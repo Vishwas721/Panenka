@@ -163,6 +163,28 @@ describe("squad-relative model", () => {
 
 const REFERENCE_MODEL_FOR_TESTS = buildRatingModel([]);
 
+describe("winger fairness", () => {
+  const season = (g: number, a: number) =>
+    buildProfile(
+      Array.from({ length: 24 }, (_, i) =>
+        rec({ goalsFor: [2, 1, 3, 0, 2][i % 5], goalsAgainst: [1, 1, 0, 2, 2][i % 5], goals: i < g ? 1 : 0, assists: i >= 24 - a ? 1 : 0, rating: i % 2 ? 6.2 : 6.0 }),
+      ),
+    );
+  const model = buildRatingModel([]);
+  const scorer = ratePlayer(model, season(10, 2), "LW").ovr!;
+  const creator = ratePlayer(model, season(2, 10), "LW").ovr!;
+  const balanced = ratePlayer(model, season(6, 6), "RW").ovr!;
+
+  it("rates scorers, creators and balanced wingers with the same output alike", () => {
+    expect(Math.abs(scorer - creator)).toBeLessThanOrEqual(1);
+    expect(Math.abs(balanced - creator)).toBeLessThanOrEqual(3);
+  });
+
+  it("judges an assist-heavy winger on the winger scale, not the striker one", () => {
+    expect(creator).toBeGreaterThan(ratePlayer(model, season(2, 10), "ST").ovr!);
+  });
+});
+
 describe("main and second position", () => {
   const season = (n: number, f: (i: number) => Partial<MatchRecord>) =>
     Array.from({ length: n }, (_, i) => rec({ goalsFor: [2, 1, 3, 0, 2][i % 5], goalsAgainst: [1, 1, 0, 2, 2][i % 5], ...f(i) }));

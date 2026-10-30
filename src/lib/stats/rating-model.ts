@@ -8,12 +8,14 @@
  *     defending, points per game, consistency, form, clutch).
  *  2. Every metric is shrunk toward its group average by its own sample size
  *     (empirical Bayes), so 4 goals in 4 games isn't treated as proven.
- *  3. Metrics become z-scores *within the player's role group* (attackers vs
- *     attackers, defenders vs defenders), with group averages blended toward a
+ *  3. Metrics become z-scores *within the player's role group* (strikers vs
+ *     strikers, wingers vs wingers, defenders vs defenders), with group averages blended toward a
  *     reference baseline so small groups stay stable.
  *  4. Position weights combine the z-scores into one composite. Centre-backs
  *     and keepers use no goals or assists; CDMs are ~75% defending/rating and
- *     25% output; CMs balance both; attackers lean on goals and assists.
+ *     25% output; CMs balance both; strikers lean on goals. Wingers are judged
+ *     on total goal contributions plus their strongest channel, so a goalscoring
+ *     winger, a creator and a balanced one all get full credit for their output.
  *  5. Composites are re-standardised across the squad and mapped onto a
  *     FIFA-like scale: squad average ≈ 73, +1 SD ≈ 82, +2.5 SD ≈ 91.
  *
@@ -23,14 +25,16 @@ import type { PlayerProfile } from "./profile";
 import { mean } from "./profile";
 import type { AttributeKey, Attributes } from "./attributes";
 
-export type RoleGroup = "ATT" | "MID" | "DEF" | "GK";
+export type RoleGroup = "ATT" | "WIDE" | "MID" | "DEF" | "GK";
 
 /**
  * Comparison group for a position. CDMs sit with defenders: in eFootball their
  * match ratings run on the defensive scale (6.0 decent, 6.5 very solid, ~7.0 ceiling).
  */
 export function roleGroup(position: string): RoleGroup {
-  if (["ST", "LW", "RW"].includes(position)) return "ATT";
+  if (position === "ST") return "ATT";
+  // Wingers get their own peers: their match ratings and goal counts run below strikers'.
+  if (["LW", "RW"].includes(position)) return "WIDE";
   if (["CB", "LB", "RB", "CDM"].includes(position)) return "DEF";
   if (position === "GK") return "GK";
   return "MID";
@@ -42,14 +46,17 @@ export function candidatePositions(position: string, extra: readonly string[] = 
   return [...new Set(out)].filter((p) => p in POSITION_WEIGHTS && p !== "UNKNOWN");
 }
 
-export type MetricKey = "rating" | "goals" | "assists" | "motm" | "defence" | "ppg" | "consistency" | "form" | "clutch";
+export type MetricKey =
+  | "rating" | "goals" | "assists" | "contrib" | "channel" | "motm" | "defence" | "ppg" | "consistency" | "form" | "clutch";
 
-export const METRIC_KEYS: MetricKey[] = ["rating", "goals", "assists", "motm", "defence", "ppg", "consistency", "form", "clutch"];
+export const METRIC_KEYS: MetricKey[] = ["rating", "goals", "assists", "contrib", "channel", "motm", "defence", "ppg", "consistency", "form", "clutch"];
 
 export const METRIC_META: Record<MetricKey, { label: string; side: "output" | "performance" | "defence" }> = {
   rating: { label: "Match rating", side: "performance" },
   goals: { label: "Goals per game", side: "output" },
   assists: { label: "Assists per game", side: "output" },
+  contrib: { label: "Goals + assists per game", side: "output" },
+  channel: { label: "Strongest output (goals or assists)", side: "output" },
   motm: { label: "Man of the Match rate", side: "output" },
   defence: { label: "Goals conceded & clean sheets", side: "defence" },
   ppg: { label: "Points per game", side: "defence" },
@@ -60,7 +67,7 @@ export const METRIC_META: Record<MetricKey, { label: string; side: "output" | "p
 
 /** How strongly each metric is pulled toward the average: "pseudo-games" of average evidence. */
 const SHRINK_K: Record<MetricKey, number> = {
-  rating: 4, goals: 6, assists: 6, motm: 8, defence: 5, ppg: 6, consistency: 5, form: 2, clutch: 4,
+  rating: 4, goals: 6, assists: 6, contrib: 6, channel: 6, motm: 8, defence: 5, ppg: 6, consistency: 5, form: 2, clutch: 4,
 };
 
 interface Stat { mean: number; sd: number }
@@ -75,37 +82,49 @@ interface Stat { mean: number; sd: number }
 const REFERENCE: Record<RoleGroup, Record<MetricKey, Stat>> = {
   ATT: {
     rating: { mean: 6.1, sd: 0.35 }, goals: { mean: 0.4, sd: 0.22 }, assists: { mean: 0.18, sd: 0.12 },
+    contrib: { mean: 0.58, sd: 0.28 }, channel: { mean: 0, sd: 1 },
     motm: { mean: 0.1, sd: 0.08 }, defence: { mean: -1.25, sd: 0.4 }, ppg: { mean: 1.6, sd: 0.35 },
     consistency: { mean: -0.75, sd: 0.2 }, form: { mean: 6.1, sd: 0.45 }, clutch: { mean: 6.1, sd: 0.45 },
   },
+  WIDE: {
+    rating: { mean: 5.95, sd: 0.3 }, goals: { mean: 0.2, sd: 0.14 }, assists: { mean: 0.2, sd: 0.12 },
+    contrib: { mean: 0.42, sd: 0.2 }, channel: { mean: 0, sd: 1 },
+    motm: { mean: 0.05, sd: 0.06 }, defence: { mean: -1.25, sd: 0.4 }, ppg: { mean: 1.6, sd: 0.35 },
+    consistency: { mean: -0.7, sd: 0.2 }, form: { mean: 5.95, sd: 0.45 }, clutch: { mean: 5.95, sd: 0.45 },
+  },
   MID: {
     rating: { mean: 5.9, sd: 0.3 }, goals: { mean: 0.1, sd: 0.1 }, assists: { mean: 0.14, sd: 0.1 },
+    contrib: { mean: 0.24, sd: 0.14 }, channel: { mean: 0, sd: 1 },
     motm: { mean: 0.04, sd: 0.05 }, defence: { mean: -1.25, sd: 0.4 }, ppg: { mean: 1.6, sd: 0.35 },
     consistency: { mean: -0.6, sd: 0.18 }, form: { mean: 5.9, sd: 0.4 }, clutch: { mean: 5.9, sd: 0.4 },
   },
   DEF: {
     rating: { mean: 5.7, sd: 0.3 }, goals: { mean: 0.02, sd: 0.04 }, assists: { mean: 0.04, sd: 0.05 },
+    contrib: { mean: 0.06, sd: 0.07 }, channel: { mean: 0, sd: 1 },
     motm: { mean: 0.02, sd: 0.04 }, defence: { mean: -1.25, sd: 0.4 }, ppg: { mean: 1.6, sd: 0.35 },
     consistency: { mean: -0.55, sd: 0.18 }, form: { mean: 5.7, sd: 0.4 }, clutch: { mean: 5.7, sd: 0.4 },
   },
   GK: {
     rating: { mean: 5.7, sd: 0.3 }, goals: { mean: 0, sd: 0.02 }, assists: { mean: 0, sd: 0.02 },
+    contrib: { mean: 0, sd: 0.02 }, channel: { mean: 0, sd: 1 },
     motm: { mean: 0.02, sd: 0.04 }, defence: { mean: -1.25, sd: 0.4 }, ppg: { mean: 1.6, sd: 0.35 },
     consistency: { mean: -0.5, sd: 0.18 }, form: { mean: 5.7, sd: 0.4 }, clutch: { mean: 5.7, sd: 0.4 },
   },
 };
 
 type W = Record<MetricKey, number>;
-const wts = (rating: number, goals: number, assists: number, motm: number, defence: number, ppg: number, consistency: number, form: number, clutch: number): W => ({
-  rating, goals, assists, motm, defence, ppg, consistency, form, clutch,
+const wts = (rating: number, goals: number, assists: number, motm: number, defence: number, ppg: number, consistency: number, form: number, clutch: number, contrib = 0, channel = 0): W => ({
+  rating, goals, assists, contrib, channel, motm, defence, ppg, consistency, form, clutch,
 });
 
 /** OVR recipe per position. Each row sums to 1. */
 export const POSITION_WEIGHTS: Record<string, W> = {
-  //          rating goals assists motm  defence ppg   consis form  clutch
+  //          rating goals assists motm  defence ppg   consis form  clutch contrib channel
   ST:  wts(0.30, 0.30, 0.07, 0.13, 0.00, 0.04, 0.05, 0.07, 0.04),
-  LW:  wts(0.30, 0.19, 0.17, 0.13, 0.00, 0.04, 0.05, 0.07, 0.05),
-  RW:  wts(0.30, 0.19, 0.17, 0.13, 0.00, 0.04, 0.05, 0.07, 0.05),
+  // Wingers: style-neutral. G+A counts goals and assists the same, and the
+  // strongest channel rewards a specialist (scorer or creator) for what they do best.
+  LW:  wts(0.26, 0.00, 0.00, 0.08, 0.00, 0.05, 0.07, 0.08, 0.08, 0.26, 0.12),
+  RW:  wts(0.26, 0.00, 0.00, 0.08, 0.00, 0.05, 0.07, 0.08, 0.08, 0.26, 0.12),
   CAM: wts(0.30, 0.14, 0.22, 0.12, 0.00, 0.05, 0.05, 0.07, 0.05),
   CM:  wts(0.28, 0.12, 0.15, 0.10, 0.08, 0.07, 0.07, 0.08, 0.05),
   CDM: wts(0.30, 0.05, 0.09, 0.11, 0.18, 0.10, 0.08, 0.05, 0.04),
@@ -129,6 +148,9 @@ export function rawMetrics(p: PlayerProfile): Record<MetricKey, Raw> {
     rating: { n: p.rating.rated, v: p.rating.avg },
     goals: { n: p.apps, v: p.apps ? p.goals / p.apps : null },
     assists: { n: p.apps, v: p.apps ? p.assists / p.apps : null },
+    contrib: { n: p.apps, v: p.apps ? (p.goals + p.assists) / p.apps : null },
+    // Derived from the goals and assists z-scores in components().
+    channel: { n: 0, v: null },
     motm: { n: p.apps, v: p.apps ? p.motm / p.apps : null },
     // Clean sheets help, goals conceded hurt; only games started or 60+ minutes count.
     defence: { n: d.games, v: d.games && d.concededPerApp !== null && d.cleanSheetRate !== null ? 1.5 * d.cleanSheetRate - d.concededPerApp : null },
@@ -192,14 +214,14 @@ function components(model: Pick<RatingModel, "groups">, p: PlayerProfile, positi
   const g = model.groups[roleGroup(peerPosition)];
   const raw = rawMetrics(p);
   const w = POSITION_WEIGHTS[position] ?? POSITION_WEIGHTS.UNKNOWN!;
-  return METRIC_KEYS.map((m) => ({
-    metric: m,
-    label: METRIC_META[m].label,
-    weight: w[m],
-    z: zFor(raw[m], g[m], SHRINK_K[m]),
-    value: raw[m].v,
-    games: raw[m].n,
-  }));
+  const zGoals = zFor(raw.goals, g.goals, SHRINK_K.goals);
+  const zAssists = zFor(raw.assists, g.assists, SHRINK_K.assists);
+  const best = zGoals >= zAssists ? raw.goals : raw.assists;
+  return METRIC_KEYS.map((m) =>
+    m === "channel"
+      ? { metric: m, label: METRIC_META[m].label, weight: w[m], z: Math.max(zGoals, zAssists), value: best.v, games: best.n }
+      : { metric: m, label: METRIC_META[m].label, weight: w[m], z: zFor(raw[m], g[m], SHRINK_K[m]), value: raw[m].v, games: raw[m].n },
+  );
 }
 
 /** Unit-variance composite of the weighted z-scores, pulled toward "unproven" for tiny samples. */
@@ -242,8 +264,10 @@ const ATTR_KEYS: AttributeKey[] = ["DEF", "IMP", "CON", "FRM", "CLU"];
 export function buildRatingModel(members: ModelMember[]): RatingModel {
   const eligible = members.filter((m) => m.profile.apps >= ELIGIBLE_APPS);
   const groups = {} as RatingModel["groups"];
-  for (const g of ["ATT", "MID", "DEF", "GK"] as RoleGroup[]) {
-    const inGroup = eligible.filter((m) => roleGroup(m.position) === g);
+  for (const g of ["ATT", "WIDE", "MID", "DEF", "GK"] as RoleGroup[]) {
+    // Strikers are measured against the whole front line (wingers included);
+    // wingers only against wingers, whose ratings and goal tallies run lower.
+    const inGroup = eligible.filter((m) => roleGroup(m.position) === g || (g === "ATT" && roleGroup(m.position) === "WIDE"));
     groups[g] = {} as Record<MetricKey, Stat>;
     for (const k of METRIC_KEYS) {
       const vals = inGroup
