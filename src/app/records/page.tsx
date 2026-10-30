@@ -1,21 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getSquadInsights } from "@/server/services/insights.service";
+import { getSeasonsOverview } from "@/server/services/insights.service";
 import { Masthead, SectionHeading, EmptyState } from "@/components/pk/kit";
 import { POSITION_SHORT, shortName } from "@/components/pk/format";
 import { RecordWall, buildRecords } from "@/components/records/record-wall";
 import { Leaderboard, type LeaderRow } from "@/components/records/leaderboard";
+import { SeasonLive, SeasonWinners } from "@/components/records/season-honours";
 import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = {
   title: "Records",
-  description: "Squad record holders and the full sortable leaderboard.",
+  description: "Season leaderboard and winners, squad record holders and the full sortable leaderboard.",
 };
 
 export const dynamic = "force-dynamic";
 
 export default async function RecordsPage() {
-  const squad = await getSquadInsights();
+  const { seasons, players: squad } = await getSeasonsOverview();
   const active = squad.filter((i) => i.profile.apps > 0);
 
   if (active.length === 0) {
@@ -76,16 +77,32 @@ export default async function RecordsPage() {
   return (
     <>
       <Masthead kicker={<><span className="text-primary">●</span> Records</>} title="The Book" accent="of the squad">
-        Every record the squad holds, who holds it and when it was set — then the whole squad ranked across 23 columns.
+        This season&apos;s race, every season&apos;s winners, every record the squad holds — then the whole squad ranked across 23 columns.
       </Masthead>
 
+      {seasons[0] && (
+        <section className="mb-16">
+          <SectionHeading
+            index="01"
+            title={`${seasons[0].label} season`}
+            note={seasons[0].current ? "live · who's leading what" : "latest season"}
+          />
+          <SeasonLive season={seasons[0]} players={active} />
+        </section>
+      )}
+
       <section className="mb-16">
-        <SectionHeading index="01" title="Record holders" note={`${records.length} records`} />
+        <SectionHeading index="02" title="Season winners" note="a season is one calendar month" />
+        <SeasonWinners seasons={seasons} players={active} />
+      </section>
+
+      <section className="mb-16">
+        <SectionHeading index="03" title="Record holders" note={`${records.length} records`} />
         <RecordWall records={records} />
       </section>
 
       <section>
-        <SectionHeading index="02" title="Leaderboard" note="tap any column to sort" />
+        <SectionHeading index="04" title="Leaderboard" note="tap any column to sort" />
         <Leaderboard rows={rows} />
       </section>
     </>
