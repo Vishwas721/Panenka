@@ -315,7 +315,7 @@ describe("season honours", () => {
 describe("Ballon d'Or", () => {
   // 20 matches in Oct 2026; ids shared so the squad played 20 games.
   const games = (f: (i: number) => Partial<MatchRecord>, n = 20) =>
-    Array.from({ length: n }, (_, i) => rec({ matchId: `bd${i}`, date: new Date(Date.UTC(2026, 9, 1 + i)).toISOString(), ...f(i) }));
+    Array.from({ length: n }, (_, i) => rec({ matchId: `bd${i}`, date: new Date(Date.UTC(2026, 9, 1 + (i % 30))).toISOString(), ...f(i) }));
   const members = [
     // A dominant centre-back: clean sheets and strong defensive ratings.
     { id: "cb", position: "CB", records: games((i) => ({ goalsFor: 1, goalsAgainst: i % 4 === 0 ? 1 : 0, rating: 6.4 })) },
@@ -324,7 +324,7 @@ describe("Ballon d'Or", () => {
     { id: "avg-cb", position: "CB", records: games(() => ({ goalsFor: 1, goalsAgainst: 1, rating: 5.7 })) },
     { id: "avg-st", position: "ST", records: games((i) => ({ goalsFor: 1, goalsAgainst: 1, goals: i % 3 === 0 ? 1 : 0, rating: 6.1 })) },
     // A hot streak over too few games to be eligible.
-    { id: "cameo", position: "ST", records: games(() => ({ goals: 3, rating: 9, motm: true }), 4) },
+    { id: "cameo", position: "ST", records: games(() => ({ goals: 3, rating: 9, motm: true }), 3) },
   ];
   const race = ballonDorRace(members, "2026-10");
 
@@ -334,9 +334,14 @@ describe("Ballon d'Or", () => {
     expect(race.entries[0]!.playerId).toBe("cb");
   });
 
-  it("needs a third of the season's matches to be eligible", () => {
+  it("needs 20% of the season's matches (capped at 10) to be eligible", () => {
     expect(race.matches).toBe(20);
-    expect(race.minApps).toBe(7);
+    expect(race.minApps).toBe(4);
     expect(race.entries.find((e) => e.playerId === "cameo")!.eligible).toBe(false);
+  });
+
+  it("never asks for more than 10 games", () => {
+    const long = ballonDorRace([{ id: "x", position: "ST", records: games(() => ({}), 60) }], "2026-10");
+    expect(long.minApps).toBe(10);
   });
 });

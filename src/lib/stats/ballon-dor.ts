@@ -11,8 +11,8 @@
  *
  * Points: the season composite on the card scale (squad-average season ≈ 73,
  * outstanding ≈ 90) plus up to +3 for body of work (apps vs the most-used player).
- * Eligibility: at least a third of the season's matches (minimum 3), as the
- * real award needs a full season, not a hot fortnight.
+ * Eligibility: 20% of the season's logged matches, capped at 10 games (and at
+ * least 3). The cap keeps it fair when players only feature for part of a season.
  *
  * Pure: no I/O.
  */
@@ -52,7 +52,8 @@ export interface BallonRace {
   entries: BallonEntry[];
 }
 
-export const BALLON_SHARE = 1 / 3;
+export const BALLON_SHARE = 0.2;
+export const BALLON_MAX_APPS = 10;
 const VOLUME_BONUS = 3;
 
 function strengths(breakdown: ComponentZ[]): string[] {
@@ -69,7 +70,7 @@ export function ballonDorRace(members: BallonMember[], seasonKey: string): Ballo
     .map((m) => ({ m, records: m.records.filter((r) => seasonOf(r.date).key === seasonKey) }))
     .filter((x) => x.records.length > 0);
   const matches = new Set(inSeason.flatMap((x) => x.records.map((r) => r.matchId))).size;
-  const minApps = Math.max(3, Math.ceil(matches * BALLON_SHARE));
+  const minApps = Math.min(BALLON_MAX_APPS, Math.max(3, Math.ceil(matches * BALLON_SHARE)));
 
   const profiles = inSeason.map((x) => ({ ...x, profile: buildProfile(x.records) as PlayerProfile }));
   const model = buildRatingModel(profiles.map((x) => ({ id: x.m.id, position: x.m.position, profile: x.profile })));
