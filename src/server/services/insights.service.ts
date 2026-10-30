@@ -13,6 +13,7 @@ import {
   type Keyword,
   type KeywordResult,
 } from "@/lib/stats/keywords";
+import { seasonHonours, honoursFor, type PlayerHonour, type SeasonHonours } from "@/lib/stats/honours";
 import { buildRatingModel, rateAtPositions, type ComponentZ, type PositionRating } from "@/lib/stats/rating-model";
 import type { Position, PreferredFoot } from "@prisma/client";
 
@@ -50,6 +51,8 @@ export interface PlayerInsight {
   tier: CardTier;
   archetype: ReturnType<typeof archetype>;
   keywords: KeywordResult;
+  /** Season honours won (and, for the season in progress, currently held). */
+  honours: PlayerHonour[];
 }
 
 export interface SquadRank {
@@ -144,9 +147,9 @@ function buildInsights(rows: PlayerRow[]): PlayerInsight[] {
       rating: { z: rated.z, breakdown: rated.breakdown, squadSize: model.squadSize, position: rated.position, byPosition: rated.byPosition },
     };
   });
-  const squad = squadKeywords(
-    base.filter((b) => !b.row.archivedAt).map((b) => ({ id: b.row.id, profile: b.profile, ovr: b.ovr })),
-  );
+  const activeMembers = base.filter((b) => !b.row.archivedAt).map((b) => ({ id: b.row.id, position: b.row.position, profile: b.profile, ovr: b.ovr }));
+  const squad = squadKeywords(activeMembers);
+  const seasons = seasonHonours(activeMembers);
   return base.map(({ row, profile, attrs, ovr, rating }) => ({
     player: identity(row),
     profile,
@@ -156,6 +159,7 @@ function buildInsights(rows: PlayerRow[]): PlayerInsight[] {
     tier: cardTier(ovr),
     archetype: archetype(attrs, rating.position),
     keywords: evaluateKeywords({ profile, attrs, ovr, position: rating.position, squad: squad.get(row.id) ?? [] }),
+    honours: honoursFor(seasons, row.id),
   }));
 }
 
@@ -164,6 +168,21 @@ export async function getSquadInsights(opts: { includeArchived?: boolean } = {})
   const rows = await loadPlayers(true);
   const all = buildInsights(rows);
   return opts.includeArchived ? all : all.filter((i) => !i.player.archivedAt);
+}
+
+export interface SeasonsOverview {
+  seasons: SeasonHonours[];
+  /** Every active player, for looking up winners by id. */
+  players: PlayerInsight[];
+}
+
+/** All seasons with their winners, newest first, plus the squad for name lookups. */
+export async function getSeasonsOverview(): Promise<SeasonsOverview> {
+  const players = await getSquadInsights();
+  return {
+    seasons: seasonHonours(players.map((i) => ({ id: i.player.id, position: i.player.position, profile: i.profile }))),
+    players,
+  };
 }
 
 function rankOf(

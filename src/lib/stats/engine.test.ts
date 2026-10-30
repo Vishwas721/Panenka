@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { buildProfile, teamScore, resultOf, type MatchRecord } from "./profile";
 import { computeAttributes, computeOverall, cardTier, archetype, cardKeys } from "./attributes";
+import { seasonHonours, honoursFor } from "./honours";
 import { buildRatingModel, ratePlayer, rateAtPositions, candidatePositions, POSITION_WEIGHTS } from "./rating-model";
 import { evaluateKeywords, squadKeywords, KEYWORD_CATALOGUE } from "./keywords";
 
@@ -271,13 +272,41 @@ describe("keywords", () => {
     const b = buildProfile([rec({ goals: 2 })]);
     const c = buildProfile([rec({ goals: 0, assists: 1 })]);
     const awards = squadKeywords([
-      { id: "a", profile: a, ovr: 70 },
-      { id: "b", profile: b, ovr: 60 },
-      { id: "c", profile: c, ovr: 50 },
+      { id: "a", position: "ST", profile: a, ovr: 70 },
+      { id: "b", position: "ST", profile: b, ovr: 60 },
+      { id: "c", position: "ST", profile: c, ovr: 50 },
     ]);
     expect(awards.get("a")!.map((k) => k.name)).toContain("Squad Top Scorer");
     expect(awards.get("b")!.map((k) => k.name)).toContain("Squad Top Scorer");
     expect(awards.get("c")!.map((k) => k.name)).toContain("Squad Top Creator");
     expect(awards.get("a")!.map((k) => k.name)).toContain("Squad No. 1");
+  });
+});
+
+describe("season honours", () => {
+  const oct = (o: Partial<MatchRecord>) => rec({ date: "2026-10-12T12:00:00Z", ...o });
+  const sep = (o: Partial<MatchRecord>) => rec({ date: "2026-09-12T12:00:00Z", ...o });
+  const a = buildProfile([oct({ goals: 3 }), sep({ goals: 1 }), ...Array.from({ length: 4 }, () => oct({ goals: 1, motm: true, rating: 7 }))]);
+  const b = buildProfile([sep({ goals: 2, assists: 2 }), oct({ assists: 1 })]);
+  const seasons = seasonHonours(
+    [{ id: "a", position: "ST", profile: a }, { id: "b", position: "LW", profile: b }],
+    new Date("2026-10-20T00:00:00Z"),
+  );
+
+  it("treats each calendar month as a season, newest first", () => {
+    expect(seasons.map((s) => s.label)).toEqual(["Oct 2026", "Sep 2026"]);
+    expect(seasons[0]!.current).toBe(true);
+    expect(seasons[1]!.current).toBe(false);
+  });
+
+  it("gives squad awards to the season leader and individual ones to anyone over the bar", () => {
+    const oct = Object.fromEntries(seasons[0]!.awards.map((x) => [x.id, x.winners.map((w) => w.playerId)]));
+    expect(oct.boot).toEqual(["a"]);
+    expect(oct.playmaker).toEqual(["b"]);
+    expect(oct.talisman).toEqual(["a"]);
+    expect(oct.star).toEqual(["a"]);
+    const sepBoot = seasons[1]!.awards.find((x) => x.id === "boot")!.winners;
+    expect(sepBoot.map((w) => w.playerId)).toEqual(["b"]);
+    expect(honoursFor(seasons, "b").map((h) => `${h.seasonLabel} ${h.id}`)).toContain("Sep 2026 boot");
   });
 });

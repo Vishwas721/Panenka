@@ -11,6 +11,7 @@
  */
 import type { PlayerProfile, TimelinePoint } from "./profile";
 import { ALL_ATTRIBUTE_KEYS, cardKeys, type AttributeKey, type Attributes, archetype } from "./attributes";
+import { HONOURS, HONOUR_BY_ID, seasonHonours } from "./honours";
 
 export type Rarity = "common" | "rare" | "epic" | "legendary" | "mythic";
 export const RARITIES: Rarity[] = ["common", "rare", "epic", "legendary", "mythic"];
@@ -570,17 +571,11 @@ export const DYNAMIC_TEMPLATES: DynamicTemplate[] = [
   { id: "opp-unbeaten", pattern: "Never Lost to {Opponent}", description: "3+ meetings, zero defeats", family: "rivalry", rarity: "rare" },
   { id: "opp-specialist", pattern: "{Opponent} Specialist", description: "8.0+ average against one opponent (2+ meetings)", family: "rivalry", rarity: "epic" },
   { id: "opp-showman", pattern: "{Opponent} Showman", description: "2+ Man of the Match awards against one opponent", family: "rivalry", rarity: "epic" },
-  { id: "comp-talisman", pattern: "{Competition} Talisman", description: "5+ goals in one competition", family: "competition", rarity: "rare" },
-  { id: "comp-royalty", pattern: "{Competition} Royalty", description: "15+ goals in one competition", family: "competition", rarity: "legendary" },
-  { id: "comp-star", pattern: "{Competition} Star", description: "3+ Man of the Match awards in one competition", family: "competition", rarity: "epic" },
-  { id: "comp-elite", pattern: "{Competition} Elite", description: "7.5+ average in one competition (5+ apps)", family: "competition", rarity: "epic" },
   { id: "day-specialist", pattern: "{Weekday} Specialist", description: "5+ goals on one weekday, 40%+ of your total", family: "calendar", rarity: "rare" },
-  { id: "season-boot", pattern: "{Season} Golden Boot", description: "Squad's top scorer in a season", family: "season", rarity: "legendary", squad: true },
-  { id: "season-playmaker", pattern: "{Season} Playmaker", description: "Squad's top assister in a season", family: "season", rarity: "legendary", squad: true },
-  { id: "season-mvp", pattern: "{Season} MVP", description: "Most Man of the Match awards in a season", family: "season", rarity: "legendary", squad: true },
-  { id: "season-best-rated", pattern: "{Season} Best Rated", description: "Highest average in a season (5+ rated apps)", family: "season", rarity: "legendary", squad: true },
-  { id: "month-potm", pattern: "{Month} Player of the Month", description: "Squad's best average in a month (2+ rated apps)", family: "month", rarity: "epic", squad: true },
-  { id: "month-scorer", pattern: "{Month} Top Scorer", description: "Squad's top scorer in a month", family: "month", rarity: "rare", squad: true },
+  // Season honours (a season is one calendar month); see ./honours.
+  ...HONOURS.map((h) => ({
+    id: `season-${h.id}`, pattern: `{Season} ${h.name}`, description: h.description, family: "season" as Family, rarity: h.rarity, squad: true,
+  })),
   { id: "squad-top-scorer", pattern: "Squad Top Scorer", description: "Most goals in the squad", family: "squad", rarity: "legendary", squad: true },
   { id: "squad-top-creator", pattern: "Squad Top Creator", description: "Most assists in the squad", family: "squad", rarity: "legendary", squad: true },
   { id: "squad-highest-rated", pattern: "Highest Rated", description: "Best average rating in the squad (5+ rated apps)", family: "squad", rarity: "legendary", squad: true },
@@ -617,13 +612,6 @@ function dynamicKeywords(c: KeywordContext): Keyword[] {
     if (o.apps >= 3 && o.losses === 0 && o.wins + o.draws === o.apps) add("opp-unbeaten", o.key, `Never Lost to ${o.label}`);
     if (o.apps >= 2 && (o.avgRating ?? 0) >= 8) add("opp-specialist", o.key, `${o.label} Specialist`);
     if (o.motm >= 2) add("opp-showman", o.key, `${o.label} Showman`);
-  }
-  for (const comp of c.profile.splits.competition) {
-    if (comp.key === "none") continue;
-    if (comp.goals >= 15) add("comp-royalty", comp.key, `${comp.label} Royalty`);
-    else if (comp.goals >= 5) add("comp-talisman", comp.key, `${comp.label} Talisman`);
-    if (comp.motm >= 3) add("comp-star", comp.key, `${comp.label} Star`);
-    if (comp.apps >= 5 && (comp.avgRating ?? 0) >= 7.5) add("comp-elite", comp.key, `${comp.label} Elite`);
   }
   for (const d of c.profile.splits.weekday) {
     if (d.goals >= 5 && c.profile.goals > 0 && d.goals / c.profile.goals >= 0.4) add("day-specialist", d.key, `${d.label} Specialist`);
@@ -706,6 +694,7 @@ export function evaluateKeywords(c: KeywordContext): KeywordResult {
 
 export interface SquadMember {
   id: string;
+  position: string;
   profile: PlayerProfile;
   ovr: number | null;
 }
@@ -738,28 +727,10 @@ export function squadKeywords(members: SquadMember[]): Map<string, Keyword[]> {
   give(leaders(active.map((m) => [m.id, m.profile.rating.rated >= 5 ? m.profile.rating.avg : null])), "squad-highest-rated", "all", "Highest Rated");
   give(leaders(active.map((m) => [m.id, m.profile.rating.rated >= 5 ? m.profile.rating.last5 : null])), "squad-form", "all", "Form Player");
 
-  const seasons = new Set(active.flatMap((m) => m.profile.splits.season.map((s) => s.key)));
-  for (const s of seasons) {
-    const line = (m: SquadMember) => m.profile.splits.season.find((x) => x.key === s);
-    const label = active.map(line).find(Boolean)!.label;
-    give(leaders(active.map((m) => [m.id, line(m)?.goals ?? null])), "season-boot", s, `${label} Golden Boot`);
-    give(leaders(active.map((m) => [m.id, line(m)?.assists ?? null])), "season-playmaker", s, `${label} Playmaker`);
-    give(leaders(active.map((m) => [m.id, line(m)?.motm ?? null])), "season-mvp", s, `${label} MVP`);
-    give(
-      leaders(active.map((m) => { const l = line(m); return [m.id, l && l.apps >= 5 ? l.avgRating : null]; })),
-      "season-best-rated", s, `${label} Best Rated`,
-    );
-  }
-
-  const months = new Set(active.flatMap((m) => m.profile.splits.month.map((s) => s.key)));
-  for (const mo of months) {
-    const line = (m: SquadMember) => m.profile.splits.month.find((x) => x.key === mo);
-    const label = active.map(line).find(Boolean)!.label;
-    give(
-      leaders(active.map((m) => { const l = line(m); return [m.id, l && l.apps >= 2 ? l.avgRating : null]; })),
-      "month-potm", mo, `${label} Player of the Month`,
-    );
-    give(leaders(active.map((m) => [m.id, line(m)?.goals ?? null])), "month-scorer", mo, `${label} Top Scorer`);
+  for (const season of seasonHonours(active)) {
+    for (const a of season.awards) {
+      give(a.winners.map((w) => w.playerId), `season-${a.id}`, season.key, `${season.label} ${HONOUR_BY_ID[a.id].name}`);
+    }
   }
   return out;
 }

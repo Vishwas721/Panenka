@@ -280,6 +280,12 @@ function streak(flags: boolean[]): Streak {
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
+/** Season key ("2026-10") and label ("Oct 2026") for a match date. */
+export function seasonOf(date: string | Date): { key: string; label: string } {
+  const d = new Date(date);
+  return { key: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`, label: `${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}` };
+}
+
 function splitBy(
   rows: TimelinePoint[],
   keyOf: (r: TimelinePoint) => { key: string; label: string } | null,
@@ -471,14 +477,8 @@ export function buildProfile(records: MatchRecord[]): PlayerProfile {
       ? { key: r.competitionId, label: r.competitionName + (r.season ? ` ${r.season}` : "") }
       : { key: "none", label: "Friendlies & other" };
   });
-  const season = splitBy(timeline, (t) => {
-    const r = sorted.find((s) => s.matchId === t.matchId)!;
-    if (r.season) return { key: r.season, label: r.season };
-    const d = new Date(t.date);
-    const y = d.getUTCMonth() >= 6 ? d.getUTCFullYear() : d.getUTCFullYear() - 1;
-    const label = `${y}/${String((y + 1) % 100).padStart(2, "0")}`;
-    return { key: label, label };
-  });
+  // A season is one calendar month, matching eFootball's division cycle.
+  const season = splitBy(timeline, (t) => seasonOf(t.date));
   const opponent = splitBy(timeline, (t) => ({ key: t.opponent.trim().toLowerCase(), label: t.opponent.trim() }));
   const month = splitBy(timeline, (t) => {
     const d = new Date(t.date);
