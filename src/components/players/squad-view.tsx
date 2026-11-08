@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ArrowDownWideNarrow, LayoutGrid, Rows3, Search, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -63,13 +64,54 @@ const sortValue = (r: SquadRow, k: SortKey): number | null => {
 };
 
 const VIEW_KEY = "panenka.squad.view";
+/** Key in the history entry where the scroll position is kept for the back button. */
+const SCROLL_STATE = "panenkaSquadScroll";
+
+type LineKey = (typeof LINES)[number]["key"];
+
+/** Our part of the history entry, without Next.js's router internals. */
+function ownState(): Record<string, unknown> {
+  const y = (window.history.state as Record<string, unknown> | null)?.[SCROLL_STATE];
+  return typeof y === "number" ? { [SCROLL_STATE]: y } : {};
+}
 
 export function SquadView({ rows, defaultTeam }: { rows: SquadRow[]; defaultTeam: string | null }) {
-  const [query, setQuery] = React.useState("");
-  const [line, setLine] = React.useState<(typeof LINES)[number]["key"]>("ALL");
-  const [sort, setSort] = React.useState<SortKey>("ovr");
-  const [showArchived, setShowArchived] = React.useState(false);
+  // Filters live in the URL, so going back to the squad keeps them. Read from the
+  // live URL (not server props): on Back, Next.js may reuse a cached render.
+  const params = useSearchParams();
+  const initialLine = params.get("line");
+  const initialSort = params.get("sort");
+  const [query, setQuery] = React.useState(params.get("q") ?? "");
+  const [line, setLine] = React.useState<LineKey>(LINES.some((l) => l.key === initialLine) ? (initialLine as LineKey) : "ALL");
+  const [sort, setSort] = React.useState<SortKey>(SORTS.some((s) => s.key === initialSort) ? (initialSort as SortKey) : "ovr");
+  const [showArchived, setShowArchived] = React.useState(params.get("archived") === "1");
   const [view, setView] = React.useState<"grid" | "table">("grid");
+
+  React.useEffect(() => {
+    const next = new URLSearchParams();
+    if (sort !== "ovr") next.set("sort", sort);
+    if (line !== "ALL") next.set("line", line);
+    if (query.trim()) next.set("q", query.trim());
+    if (showArchived) next.set("archived", "1");
+    const qs = next.toString();
+    const url = `${window.location.pathname}${qs ? `?${qs}` : ""}`;
+    // Pass only our own keys: Next.js then records the new URL in its router state too.
+    if (url !== `${window.location.pathname}${window.location.search}`) window.history.replaceState(ownState(), "", url);
+  }, [sort, line, query, showArchived]);
+
+  // Back from a player: return to the spot the card was clicked from.
+  React.useEffect(() => {
+    const y = (window.history.state as Record<string, unknown> | null)?.[SCROLL_STATE];
+    if (typeof y !== "number") return;
+    const restore = () => window.scrollTo({ top: y, behavior: "instant" as ScrollBehavior });
+    restore();
+    // Again after the cards have laid out and Next has finished its own scroll handling.
+    const t = window.setTimeout(restore, 80);
+    return () => window.clearTimeout(t);
+  }, []);
+  const rememberScroll = () => {
+    window.history.replaceState({ [SCROLL_STATE]: window.scrollY }, "");
+  };
 
   React.useEffect(() => {
     try {
@@ -245,7 +287,7 @@ export function SquadView({ rows, defaultTeam }: { rows: SquadRow[]; defaultTeam
       {visible.length === 0 ? (
         <EmptyState title="Nobody fits">Try another search, line or the archived toggle.</EmptyState>
       ) : view === "grid" ? (
-        <ul className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
+        <ul onClickCapture={rememberScroll} className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
           {visible.map((r, i) => (
             <li key={r.card.id} className="rise min-w-0" style={{ animationDelay: `${Math.min(i, 12) * 40}ms` }}>
               <div className={cn(r.archived && "opacity-50 grayscale")}>
@@ -262,7 +304,7 @@ export function SquadView({ rows, defaultTeam }: { rows: SquadRow[]; defaultTeam
           ))}
         </ul>
       ) : (
-        <div className="panel overflow-x-auto">
+        <div className="panel overflow-x-auto" onClickCapture={rememberScroll}>
           <table className="w-full min-w-[52rem] text-sm">
             <thead>
               <tr className="border-b text-left">
