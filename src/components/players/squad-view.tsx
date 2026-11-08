@@ -21,9 +21,11 @@ export interface SquadRow {
   last5: number | null;
   keywordCount: number;
   topKeyword: Keyword | null;
+  /** When the player was added to the squad (ms since epoch). */
+  signedAt: number;
 }
 
-type SortKey = "ovr" | "rating" | "goals" | "assists" | "motm" | "apps" | "form" | "name";
+type SortKey = "ovr" | "rating" | "goals" | "assists" | "motm" | "apps" | "form" | "newest" | "oldest" | "name";
 const SORTS: { key: SortKey; label: string }[] = [
   { key: "ovr", label: "OVR" },
   { key: "rating", label: "Rating" },
@@ -32,6 +34,8 @@ const SORTS: { key: SortKey; label: string }[] = [
   { key: "assists", label: "Assists" },
   { key: "motm", label: "MOTM" },
   { key: "apps", label: "Apps" },
+  { key: "newest", label: "Newest signings" },
+  { key: "oldest", label: "Longest serving" },
   { key: "name", label: "Name" },
 ];
 
@@ -52,6 +56,8 @@ const sortValue = (r: SquadRow, k: SortKey): number | null => {
     case "assists": return r.card.assists;
     case "motm": return r.card.motm;
     case "apps": return r.card.apps;
+    case "newest": return r.signedAt;
+    case "oldest": return -r.signedAt;
     default: return null;
   }
 };

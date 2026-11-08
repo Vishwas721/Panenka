@@ -21,6 +21,7 @@ export default async function PlayersPage() {
     last5: i.profile.rating.last5,
     keywordCount: i.keywords.unlocked.length,
     topKeyword: i.keywords.signature[0] ?? null,
+    signedAt: Date.parse(i.player.createdAt),
   }));
 
   const counts = new Map<string, number>();
