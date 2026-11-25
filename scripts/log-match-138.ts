@@ -34,18 +34,18 @@ const matchPlayers: PlayerData[] = [
     notes: "Started at GK; played full 90 minutes",
   },
   {
-    fullName: "Eren Elmalı",
-    displayName: "Elmalı",
+    fullName: "Nathan Tjoe-A-On",
+    displayName: "Tjoe-A-On",
     position: "LB",
-    team: "Trabzonspor",
-    nationality: "Turkey",
+    team: "Swansea City",
+    nationality: "Indonesia",
     matchRating: 6.0,
     goals: 0,
     assists: 0,
     isMotm: false,
     status: "STARTED",
-    minutesPlayed: 70,
-    notes: "Started at LB; subbed off at 70'",
+    minutesPlayed: 90,
+    notes: "Started at LB/CB; played full 90 minutes",
   },
   {
     fullName: "Dean Huijsen",
@@ -60,6 +60,20 @@ const matchPlayers: PlayerData[] = [
     status: "STARTED",
     minutesPlayed: 90,
     notes: "Started at CB; played full 90 minutes",
+  },
+  {
+    fullName: "Eren Elmalı",
+    displayName: "Elmalı",
+    position: "LB",
+    team: "Trabzonspor",
+    nationality: "Turkey",
+    matchRating: 6.0,
+    goals: 0,
+    assists: 0,
+    isMotm: false,
+    status: "STARTED",
+    minutesPlayed: 70,
+    notes: "Started at LB; subbed off at 70'",
   },
   {
     fullName: "Trent Alexander-Arnold",
@@ -118,20 +132,6 @@ const matchPlayers: PlayerData[] = [
     notes: "Started at AMF; played full 90 minutes",
   },
   {
-    fullName: "Pedro",
-    displayName: "Pedro",
-    position: "CAM",
-    team: "Lazio",
-    nationality: "Spain",
-    matchRating: 6.5,
-    goals: 0,
-    assists: 1,
-    isMotm: false,
-    status: "STARTED",
-    minutesPlayed: 90,
-    notes: "Started at AMF; provided 1 Assist; played full 90 minutes",
-  },
-  {
     fullName: "Dimitri Payet",
     displayName: "Payet",
     position: "CAM",
@@ -167,27 +167,27 @@ const matchPlayers: PlayerData[] = [
     nationality: "Netherlands",
     matchRating: 7.5,
     goals: 1,
-    assists: 0,
+    assists: 1,
     isMotm: true,
     status: "STARTED",
     minutesPlayed: 90,
-    notes: "Started at CF; scored 1 Goal; MOTM; played full 90 minutes",
+    notes: "Started at CF; scored 1 Goal & provided 1 Assist; MOTM; played full 90 minutes",
   },
 
   // 3 Substitutes (all on at 70')
   {
-    fullName: "Nathan Tjoe-A-On",
-    displayName: "Tjoe-A-On",
-    position: "LB",
-    team: "Swansea City",
-    nationality: "Indonesia",
-    matchRating: 6.0,
+    fullName: "Pedro",
+    displayName: "Pedro",
+    position: "CAM",
+    team: "Lazio",
+    nationality: "Spain",
+    matchRating: 6.5,
     goals: 0,
-    assists: 0,
+    assists: 1,
     isMotm: false,
     status: "SUBSTITUTE_USED",
     minutesPlayed: 20,
-    notes: "Subbed on at 70' for Eren Elmalı",
+    notes: "Subbed on at 70' for Dimitri Payet; provided 1 Assist",
   },
   {
     fullName: "Ferreira",
@@ -201,7 +201,7 @@ const matchPlayers: PlayerData[] = [
     isMotm: false,
     status: "SUBSTITUTE_USED",
     minutesPlayed: 20,
-    notes: "Subbed on at 70' for Dimitri Payet",
+    notes: "Subbed on at 70' for Eren Elmalı",
   },
   {
     fullName: "Ademola Lookman",
@@ -220,6 +220,23 @@ const matchPlayers: PlayerData[] = [
 ];
 
 async function main() {
+  console.log("Checking for previous Match 138 record to update...");
+
+  // Remove previous match 138 if already created
+  const existingMatches = await prisma.match.findMany({
+    where: {
+      notes: { contains: "Match 138" },
+    },
+    include: { performances: true },
+  });
+
+  for (const m of existingMatches) {
+    console.log(`Deleting previous Match 138 instance: ${m.id}`);
+    await prisma.match.delete({
+      where: { id: m.id },
+    });
+  }
+
   console.log("Checking/verifying players in Panenka for Match 138...");
 
   const playerIds: { [name: string]: string } = {};
@@ -271,7 +288,7 @@ async function main() {
     scoreAway: 3,
     status: "COMPLETED",
     notes:
-      "eFootball Match 138 logged from player ratings screenshots (3-3 Home Draw, Vitinha 1G, Marco van Basten 1G MOTM, Dimitri Payet 1G, Pedro 1A; Subs: Nathan Tjoe-A-On, Ferreira, Ademola Lookman on at 70' for Eren Elmalı, Dimitri Payet, Jacob Murphy; Debut: Jacob Murphy)",
+      "eFootball Match 138 logged from player ratings screenshots (3-3 Home Draw, Vitinha 1G, Marco van Basten 1G 1A MOTM, Dimitri Payet 1G, Pedro 1A off bench; Subs: Pedro, Ferreira, Ademola Lookman on at 70' for Dimitri Payet, Eren Elmalı, Jacob Murphy; Debut: Jacob Murphy)",
     performances,
   });
 
